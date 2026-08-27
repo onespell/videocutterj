@@ -1,4 +1,4 @@
-# videocutter
+# videocutterj
 
 Application for taking clips or frames from a video file.
 
