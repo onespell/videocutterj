@@ -1,0 +1,120 @@
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+
+plugins {
+    id 'java-library'
+    id 'distribution'
+}
+
+group = 'net.scriptorium'
+version = '4.0.0'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 17
+    options.encoding = 'UTF-8'
+}
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dirs 'lib'
+    }
+}
+
+def os = org.gradle.nativeplatform.platform.internal.DefaultNativePlatform.currentOperatingSystem
+def arch = org.gradle.nativeplatform.platform.internal.DefaultNativePlatform.currentArchitecture
+
+def swtArtifact
+if (os.linux && (arch.amd64 || arch.name.contains('x86-64'))) {
+    swtArtifact = 'org.eclipse.swt.gtk.linux.x86_64'
+} else if (os.linux && arch.arm64) {
+    swtArtifact = 'org.eclipse.swt.gtk.linux.aarch64'
+} else if (os.windows && (arch.amd64 || arch.name.contains('x86-64'))) {
+    swtArtifact = 'org.eclipse.swt.win32.win32.x86_64'
+} else if (os.macOsX && arch.arm64) {
+    swtArtifact = 'org.eclipse.swt.cocoa.macosx.aarch64'
+} else if (os.macOsX) {
+    swtArtifact = 'org.eclipse.swt.cocoa.macosx.x86_64'
+} else {
+    swtArtifact = 'org.eclipse.swt.gtk.linux.x86_64'
+}
+
+dependencies {
+    implementation("org.apache.commons:commons-lang3:3.20.0")
+    implementation("org.apache.logging.log4j:log4j-api:2.26.1")
+    implementation("org.apache.logging.log4j:log4j-core:2.26.1")
+    implementation("org.eclipse.platform:${swtArtifact}:3.134.0") {
+        exclude group: 'org.eclipse.platform', module: 'org.eclipse.swt'
+    }
+    implementation "org.bytedeco:javacv:1.5.13"
+    implementation "org.bytedeco:ffmpeg-platform-gpl:8.0.1-1.5.13"
+    testImplementation("junit:junit:4.13.1")
+}
+
+jar {
+    archiveBaseName = 'videocutter'
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+                'Implementation-Title': project.name,
+                'Implementation-Version': project.version,
+                'Class-Path': configurations.runtimeClasspath.collect { it.name }.join(' '),
+                'Main-Class': 'net.scriptorium.videocutter.Videocutter'
+        )
+    }
+}
+
+ext {
+    libFiles = configurations.runtimeClasspath.collect { it.toURI() }
+    scriptsBuildDir = 'build/scripts'
+}
+
+tasks.register("startScript") {
+    dependsOn(jar)
+    doFirst {
+        String projectHome = project.projectDir.absolutePath
+        Path templatesPath = Paths.get(projectHome, "src", "main", "scripts")
+        Path scriptsPath = Paths.get(projectHome, scriptsBuildDir)
+        Files.createDirectories(scriptsPath)
+        String jarName = jar.archiveFile.get().getAsFile().name
+        var tmpl = templatesPath.resolve("run").toFile()
+        var text = tmpl.getText(StandardCharsets.UTF_8.name())
+        text = text.replace("\${jar}", jarName)
+        text = text.replace("\${app.version}", project.version)
+        scriptsPath.resolve("run").toFile().setText(text, StandardCharsets.UTF_8.name())
+    }
+}
+
+distributions {
+    main {
+        distributionBaseName = 'videocutter'
+        contents {
+            into('') {
+                from 'dist'
+            }
+            into('') {
+                from scriptsBuildDir
+                filePermissions {
+                    user {
+                        read = true
+                        execute = true
+                    }
+                    other.execute = false
+                }
+            }
+            into('lib') {
+                from jar.archiveFile
+                from libFiles
+            }
+        }
+    }
+}
+
+[distZip, distTar]*.dependsOn clean, startScript

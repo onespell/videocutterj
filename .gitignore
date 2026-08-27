@@ -1,0 +1,28 @@
+# Log files
+*.log
+
+# Large media files
+*.mp4
+*.tiff
+*.avi
+*.flv
+*.mov
+*.wmv
+
+/submit
+/test
+.m2/
+
+# Java / Gradle
+target/
+build/
+.gradle/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
