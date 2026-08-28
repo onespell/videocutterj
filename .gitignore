@@ -10,6 +10,7 @@
 *.wmv
 
 /submit
+/task_jar
 /test
 .m2/
 

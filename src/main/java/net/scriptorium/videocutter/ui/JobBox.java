@@ -32,8 +32,6 @@ final class JobBox {
 
 	private final org.eclipse.swt.widgets.List list;
 
-	private final Button dryRunChk;
-
 	private final Button runBtn;
 
 	private final List<Job> items = new ArrayList<>();
@@ -75,14 +73,7 @@ final class JobBox {
 			}
 		});
 
-		final Composite row = new Composite(frame, SWT.NONE);
-		row.setLayout(new GridLayout(2, false));
-		row.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
-
-		dryRunChk = new Button(row, SWT.CHECK);
-		dryRunChk.setText(L10n.t("dryRun"));
-
-		runBtn = new Button(row, SWT.PUSH);
+		runBtn = new Button(frame, SWT.PUSH);
 		runBtn.setText(L10n.t("run"));
 		runBtn.setLayoutData(new GridData(SWT.FILL, SWT.CENTER, true, false));
 		runBtn.addSelectionListener(new SelectionAdapter() {
@@ -131,7 +122,6 @@ final class JobBox {
 
 	void setEnabled(final boolean value) {
 		list.setEnabled(value);
-		dryRunChk.setEnabled(value);
 		runBtn.setEnabled(value);
 	}
 
@@ -157,18 +147,8 @@ final class JobBox {
 		}
 		final List<Job> sorted = JobRunner.sorted(items);
 		final int numOfJobs = items.size();
-		final boolean dry = dryRunChk.getSelection();
 		final Shell shell = frame.getShell();
 		final Display display = shell.getDisplay();
-		if (dry) {
-			final StringBuilder msg = new StringBuilder();
-			for (final Job job : sorted) {
-				msg.append(JobRunner.dryRun(job, session.filePath(), numOfJobs));
-				msg.append("\n\n");
-			}
-			new LogWindow(shell, msg.toString()).show();
-			return;
-		}
 		final ProgressSplash splash = new ProgressSplash(shell, L10n.t("executing"), sorted.size());
 		splash.show();
 		final Thread worker = new Thread(() -> {

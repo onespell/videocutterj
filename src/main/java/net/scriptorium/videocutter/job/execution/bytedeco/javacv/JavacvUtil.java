@@ -2,7 +2,6 @@ package net.scriptorium.videocutter.job.execution.bytedeco.javacv;
 
 import net.scriptorium.videocutter.FrameSize;
 import net.scriptorium.videocutter.Settings;
-import net.scriptorium.videocutter.TimeUtil;
 import net.scriptorium.videocutter.job.ClipJob;
 import net.scriptorium.videocutter.job.ShotJob;
 import net.scriptorium.videocutter.media.Analysis;
@@ -34,11 +33,6 @@ import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.
 import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P;
 
 public class JavacvUtil {
-
-	public static String describe(final ShotJob job, final Path source, final Path resultFile) {
-		return "javacv freeze " + TimeUtil.toTimeCode(job.timeMillis()) + " "
-				+ job.format() + " -> " + resultFile + " (from " + source.getFileName() + ")";
-	}
 
 	public static boolean takeShot(final ShotJob job, final Path source, final Path resultFile) throws IOException {
 		try (final FFmpegFrameGrabber grabber = Analysis.openGrabber(source);

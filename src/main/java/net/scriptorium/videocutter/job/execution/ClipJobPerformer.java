@@ -9,12 +9,6 @@ import java.util.Locale;
 
 final class ClipJobPerformer {
 
-	public static String describe(final ClipJob job, final Path source, final Path resultFile) {
-		final boolean needsReencode = needsReencode(job);
-		return (needsReencode ||
-				!FfmpegCli.available()) ? BytedecoUtil.describe(job, needsReencode, source, resultFile) : FfmpegCli.describe(job, source, resultFile);
-	}
-
 	public static boolean perform(final ClipJob job, final Path source, final Path resultFile) throws Exception {
 		final long startUs = job.timeMillis() * 1000L;
 		final long endUs = job.finishMillis() * 1000L;

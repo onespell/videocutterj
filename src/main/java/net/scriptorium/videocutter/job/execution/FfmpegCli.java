@@ -22,14 +22,6 @@ public final class FfmpegCli {
 		return resolveBinary().isPresent();
 	}
 
-	public static String describe(final ClipJob job, final Path source, final Path resultFile) {
-		return "ffmpeg -c copy "
-				+ TimeUtil.toTimeCode(job.timeMillis()) + "-" + TimeUtil.toTimeCode(job.finishMillis())
-				+ (job.size() != null ? " " + job.size() : "")
-				+ " " + job.format() + " -> " + resultFile
-				+ " (from " + source.getFileName() + ")";
-	}
-
 	public static boolean remux(
 			final ClipJob job,
 			final Path source,

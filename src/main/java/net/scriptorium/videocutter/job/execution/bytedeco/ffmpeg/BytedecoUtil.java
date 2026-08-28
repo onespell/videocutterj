@@ -1,6 +1,5 @@
 package net.scriptorium.videocutter.job.execution.bytedeco.ffmpeg;
 
-import net.scriptorium.videocutter.TimeUtil;
 import net.scriptorium.videocutter.job.ClipJob;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
 import org.bytedeco.ffmpeg.avformat.AVFormatContext;
@@ -40,21 +39,6 @@ import static org.bytedeco.ffmpeg.global.avutil.AV_TIME_BASE;
 import static org.bytedeco.ffmpeg.global.avutil.av_rescale_q;
 
 public class BytedecoUtil {
-
-	public static String describe(final ClipJob job, final boolean needsReencode, final Path source,
-			final Path resultFile) {
-		final String mode;
-		if (needsReencode) {
-			mode = "bytedeco reencode";
-		} else {
-			mode = "bytedeco remux";
-		}
-		return mode + " "
-				+ TimeUtil.toTimeCode(job.timeMillis()) + "-" + TimeUtil.toTimeCode(job.finishMillis())
-				+ (job.size() != null ? " " + job.size() : "")
-				+ " " + job.format() + " -> " + resultFile
-				+ " (from " + source.getFileName() + ")";
-	}
 
 	/**
 	 * Decode/encode/mux via bytedeco FFmpeg natives.

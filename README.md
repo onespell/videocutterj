@@ -60,4 +60,4 @@ videocutter/run /path/to/video.mkv
 * 5 - take a clip
 * 6 - input jobs manually (the same syntax as in log file)
 * 7 - jobs list
-* 8 - execute jobs (check "dry run" to just preview commands)
+* 8 - execute jobs
