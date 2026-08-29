@@ -145,11 +145,23 @@ public final class JavacvPlayer implements IPlayer {
 				}
 				if (seek != null) {
 					try {
-						Analysis.seekGrabber(g, seek);
-						playOriginWallMs = System.currentTimeMillis();
-						playOriginMediaUs = seek;
-						lastTimestampUs = seek;
-						awaitingSeekTarget = true;
+						final Analysis.GrabbedFrame grabbed = Analysis.grabFrameAtOrAfter(g, seek);
+						if (grabbed != null) {
+							final long ts = grabbed.timestampMicros();
+							playOriginWallMs = System.currentTimeMillis();
+							playOriginMediaUs = ts;
+							lastTimestampUs = ts;
+							awaitingSeekTarget = false;
+							final Frame seekFrame = grabbed.frame();
+							if (seekFrame.image != null) {
+								final ImageData data = convertFrame(seekFrame, converter);
+								if (data != null) {
+									presentImageData(data, seekFrame.imageWidth, seekFrame.imageHeight);
+								}
+								notifyTime((int) (ts / 1000L));
+							}
+							continue;
+						}
 					} catch (final Exception e) {
 						log.error("seek failed", e);
 					}
@@ -354,18 +366,11 @@ public final class JavacvPlayer implements IPlayer {
 			final FFmpegFrameGrabber g = grabber;
 			if (g != null) {
 				try {
-					Analysis.seekGrabber(g, micros);
-					final Frame frame = g.grabImage();
-					if (frame != null) {
-						publishVideo(frame);
-						long ts = frame.timestamp;
-						if (ts < 0) {
-							ts = g.getTimestamp();
-						}
-						if (ts >= 0) {
-							lastTimestampUs = ts;
-							actual = (int) Math.min(Integer.MAX_VALUE, ts / 1000L);
-						}
+					final Analysis.GrabbedFrame grabbed = Analysis.grabFrameAtOrAfter(g, micros);
+					if (grabbed != null) {
+						publishVideo(grabbed.frame());
+						lastTimestampUs = grabbed.timestampMicros();
+						actual = (int) Math.min(Integer.MAX_VALUE, lastTimestampUs / 1000L);
 					} else {
 						final long ts = g.getTimestamp();
 						if (ts >= 0) {

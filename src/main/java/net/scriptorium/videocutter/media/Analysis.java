@@ -11,6 +11,7 @@ import org.bytedeco.ffmpeg.avformat.AVStream;
 import org.bytedeco.ffmpeg.avutil.AVDictionary;
 import org.bytedeco.ffmpeg.avutil.AVDictionaryEntry;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.FrameGrabber;
 
 import java.io.IOException;
@@ -33,6 +34,10 @@ import static org.bytedeco.ffmpeg.global.avutil.av_dict_get;
 import static org.bytedeco.ffmpeg.global.avutil.av_q2d;
 
 public final class Analysis {
+
+	public record GrabbedFrame(Frame frame, long timestampMicros) {
+
+	}
 
 	public static MediaInfo inspect(final Path file) throws IOException {
 		final String format = formatOf(file);
@@ -72,6 +77,53 @@ public final class Analysis {
 		} else {
 			grabber.setTimestamp(micros, true);
 		}
+	}
+
+	/**
+	 * Seek to {@code targetMicros} and return the first decoded video frame with PTS &gt;= target.
+	 */
+	public static GrabbedFrame grabFrameAtOrAfter(final FFmpegFrameGrabber grabber, final long targetMicros)
+			throws FrameGrabber.Exception {
+		seekGrabber(grabber, targetMicros);
+		final double frameRate = grabber.getFrameRate() > 0 ? grabber.getFrameRate() : 25;
+		long lastTs = targetMicros;
+		Frame frame = null;
+		Frame lastFrame = null;
+		long frameTs = -1L;
+
+		while (true) {
+			final Frame candidate = grabber.grabImage();
+			if (candidate == null) {
+				break;
+			}
+			if (candidate.image == null) {
+				continue;
+			}
+			long ts = candidate.timestamp;
+			if (ts < 0) {
+				ts = lastTs + (long) (1_000_000.0 / frameRate);
+			}
+			lastTs = ts;
+			lastFrame = candidate;
+			if (ts < targetMicros) {
+				continue;
+			}
+			frame = candidate;
+			frameTs = ts;
+			break;
+		}
+
+		if (frame == null) {
+			frame = lastFrame;
+			frameTs = lastTs;
+		}
+		if (frame == null || frame.image == null) {
+			return null;
+		}
+		if (frameTs < 0) {
+			frameTs = frame.timestamp >= 0 ? frame.timestamp : lastTs;
+		}
+		return new GrabbedFrame(frame, frameTs);
 	}
 
 	static String formatOf(final Path file) {
