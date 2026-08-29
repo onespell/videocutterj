@@ -329,7 +329,7 @@ final class MediaBar {
 		return new int[]{left, right};
 	}
 
-	void goTo(final int millis) {
+	Position goTo(final int millis) {
 		if (paused) {
 			final int actual = player.goTo(millis);
 			position.set(millis, actual);
@@ -338,6 +338,7 @@ final class MediaBar {
 			updatingTimeScale = false;
 			onTimeChanged.run();
 		}
+		return position;
 	}
 
 	void reset(final int duration, final boolean isPaused, final List<Integer> frames) {

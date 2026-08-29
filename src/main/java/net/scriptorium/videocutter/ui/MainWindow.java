@@ -93,9 +93,9 @@ public final class MainWindow {
 			toolBox.frame.setLayoutData(gridData);
 		}
 		toolBox.jobBox.setOnJump(ms -> {
-			viewer.mediaBar.goTo(ms);
-			toolBox.shotBox.setTime(ms);
-			toolBox.clipBox.setTime(ms);
+			int p = viewer.mediaBar.goTo(ms).getActual();
+			toolBox.shotBox.setTime(p);
+			toolBox.clipBox.setTime(p);
 		});
 		bindKeys();
 		shell.addShellListener(new ShellAdapter() {
