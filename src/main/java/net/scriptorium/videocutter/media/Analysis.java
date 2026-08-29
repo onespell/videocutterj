@@ -62,6 +62,18 @@ public final class Analysis {
 		return grabber;
 	}
 
+	/**
+	 * Seek grabber to {@code micros}. Zero uses {@link FFmpegFrameGrabber#restart()} because
+	 * {@code setTimestamp(0, true)} can land past the true start (JavaCV early_ts==0 shortcut).
+	 */
+	public static void seekGrabber(final FFmpegFrameGrabber grabber, final long micros) throws FrameGrabber.Exception {
+		if (micros == 0L) {
+			grabber.restart();
+		} else {
+			grabber.setTimestamp(micros, true);
+		}
+	}
+
 	static String formatOf(final Path file) {
 		final String name = file.getFileName().toString();
 		final int dot = name.lastIndexOf('.');

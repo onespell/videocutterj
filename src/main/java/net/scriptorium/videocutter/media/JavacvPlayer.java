@@ -126,18 +126,6 @@ public final class JavacvPlayer implements IPlayer {
 		}
 	}
 
-	/**
-	 * Seek grabber to {@code micros}. Zero uses {@link FFmpegFrameGrabber#restart()} because
-	 * {@code setTimestamp(0, true)} can land past the true start (JavaCV early_ts==0 shortcut).
-	 */
-	private static void seekGrabber(final FFmpegFrameGrabber g, final long micros) throws Exception {
-		if (micros == 0L) {
-			g.restart();
-		} else {
-			g.setTimestamp(micros, true);
-		}
-	}
-
 	private void decodeLoop() {
 		final Java2DFrameConverter converter = new Java2DFrameConverter();
 		try {
@@ -157,7 +145,7 @@ public final class JavacvPlayer implements IPlayer {
 				}
 				if (seek != null) {
 					try {
-						seekGrabber(g, seek);
+						Analysis.seekGrabber(g, seek);
 						playOriginWallMs = System.currentTimeMillis();
 						playOriginMediaUs = seek;
 						lastTimestampUs = seek;
@@ -366,7 +354,7 @@ public final class JavacvPlayer implements IPlayer {
 			final FFmpegFrameGrabber g = grabber;
 			if (g != null) {
 				try {
-					seekGrabber(g, micros);
+					Analysis.seekGrabber(g, micros);
 					final Frame frame = g.grabImage();
 					if (frame != null) {
 						publishVideo(frame);

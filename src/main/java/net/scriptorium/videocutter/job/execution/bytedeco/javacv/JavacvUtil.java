@@ -37,10 +37,37 @@ public class JavacvUtil {
 	public static boolean takeShot(final ShotJob job, final Path source, final Path resultFile) throws IOException {
 		try (final FFmpegFrameGrabber grabber = Analysis.openGrabber(source);
 			 final Java2DFrameConverter converter = new Java2DFrameConverter()) {
-			grabber.setTimestamp(job.timeMillis() * 1000L, true);
-			Frame frame = grabber.grabImage();
-			if (frame == null || frame.image == null) {
-				frame = grabber.grabKeyFrame();
+			final long targetUs = job.timeMillis() * 1000L;
+			Analysis.seekGrabber(grabber, targetUs);
+
+			final double frameRate = grabber.getFrameRate() > 0 ? grabber.getFrameRate() : 25;
+			long lastTs = targetUs;
+			Frame frame = null;
+			Frame lastFrame = null;
+
+			while (true) {
+				final Frame candidate = grabber.grabImage();
+				if (candidate == null) {
+					break;
+				}
+				if (candidate.image == null) {
+					continue;
+				}
+				long ts = candidate.timestamp;
+				if (ts < 0) {
+					ts = lastTs + (long) (1_000_000.0 / frameRate);
+				}
+				lastTs = ts;
+				lastFrame = candidate;
+				if (ts < targetUs) {
+					continue;
+				}
+				frame = candidate;
+				break;
+			}
+
+			if (frame == null) {
+				frame = lastFrame;
 			}
 			if (frame == null || frame.image == null) {
 				return false;
