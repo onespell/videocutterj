@@ -32,14 +32,14 @@ final class ClipJobPerformer {
 
 	/**
 	 * Stream copy when no resize and container supports remux. Mute drops audio with {@code -an} (still copy, no
-	 * decode). Resize, WEBM, and WMV always reencode (bytedeco native, JavaCV fallback).
+	 * decode). Resize, WEBM, WMV, and HEVC always reencode (bytedeco native, JavaCV fallback).
 	 */
 	private static boolean needsReencode(final ClipJob job) {
 		if (job.size() != null) {
 			return true;
 		}
 		final String fmt = job.format() == null ? "" : job.format().toLowerCase(Locale.ROOT);
-		return "webm".equals(fmt) || "wmv".equals(fmt);
+		return "webm".equals(fmt) || "wmv".equals(fmt) || "hevc".equals(fmt);
 	}
 
 	private ClipJobPerformer() {

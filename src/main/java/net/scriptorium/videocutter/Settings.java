@@ -85,7 +85,7 @@ public final class Settings {
 	}
 
 	public static List<String> videoFormats() {
-		return List.of("MP4", "AVI", "MKV", "WMV");
+		return List.of("MP4", "HEVC", "AVI", "MKV", "WMV");
 	}
 
 	public static String[] fileFilterNames() {

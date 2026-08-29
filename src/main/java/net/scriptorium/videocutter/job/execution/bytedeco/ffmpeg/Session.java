@@ -4,6 +4,8 @@ import net.scriptorium.videocutter.FrameSize;
 import net.scriptorium.videocutter.Settings;
 import net.scriptorium.videocutter.job.ClipJob;
 import net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bytedeco.ffmpeg.avcodec.AVCodec;
 import org.bytedeco.ffmpeg.avcodec.AVCodecContext;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
@@ -23,12 +25,7 @@ import org.bytedeco.javacpp.PointerPointer;
 import java.nio.file.Path;
 import java.util.Locale;
 
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.CRF_H264;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.CRF_VP9;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.PRESET_FAST;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.PRESET_REENCODE;
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.audioCodecName;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.normalizeFormat;
 import static org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_FLAG_GLOBAL_HEADER;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_rescale_ts;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_unref;
@@ -77,7 +74,6 @@ import static org.bytedeco.ffmpeg.global.avutil.av_audio_fifo_write;
 import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_compare;
 import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_default;
 import static org.bytedeco.ffmpeg.global.avutil.av_dict_free;
-import static org.bytedeco.ffmpeg.global.avutil.av_dict_set;
 import static org.bytedeco.ffmpeg.global.avutil.av_frame_alloc;
 import static org.bytedeco.ffmpeg.global.avutil.av_frame_free;
 import static org.bytedeco.ffmpeg.global.avutil.av_frame_get_buffer;
@@ -97,6 +93,11 @@ import static org.bytedeco.ffmpeg.global.swscale.sws_scale;
 import static org.bytedeco.ffmpeg.presets.avutil.AVERROR_EAGAIN;
 
 public class Session implements AutoCloseable {
+
+	private static final Logger LOG = LogManager.getLogger(Session.class);
+
+	/** MP4 fourcc {@code hvc1} for HEVC playback compatibility. */
+	private static final int CODEC_TAG_HVC1 = 0x31637668;
 
 	private final AVFormatContext ifmt = new AVFormatContext(null);
 
@@ -367,6 +368,7 @@ public class Session implements AutoCloseable {
 		final String codecName = EncodeSettings.videoCodecName(fmt);
 		final AVCodec encoder = avcodec_find_encoder_by_name(codecName);
 		if (encoder == null || encoder.isNull()) {
+			LOG.warn("video encoder not found: {}", codecName);
 			return false;
 		}
 		videoEnc = avcodec_alloc_context3(encoder);
@@ -378,7 +380,9 @@ public class Session implements AutoCloseable {
 		videoEnc.width(outW);
 		videoEnc.height(outH);
 		videoEnc.pix_fmt(AV_PIX_FMT_YUV420P);
-		videoEnc.thread_count(threadCount());
+		if (!"hevc".equals(fmt)) {
+			videoEnc.thread_count(threadCount());
+		}
 		AVRational fps = av_guess_frame_rate(ifmt, videoIn, null);
 		if (fps == null || fps.isNull() || fps.num() <= 0 || fps.den() <= 0) {
 			fps = videoIn.avg_frame_rate();
@@ -396,15 +400,18 @@ public class Session implements AutoCloseable {
 			videoEnc.sample_aspect_ratio(videoIn.codecpar().sample_aspect_ratio());
 		}
 		if ("wmv".equals(fmt)) {
-			videoEnc.bit_rate(EncodeSettings.WMV_VIDEO_BITRATE);
+			videoEnc.bit_rate(EncodeSettings.wmvVideoBitrate(outW, outH));
+		} else if ("hevc".equals(fmt)) {
+			videoEnc.bit_rate(0);
 		}
 		if ((ofmt.oformat().flags() & AVFMT_GLOBALHEADER) != 0) {
 			videoEnc.flags(videoEnc.flags() | AV_CODEC_FLAG_GLOBAL_HEADER);
 		}
 
 		final AVDictionary options = new AVDictionary(null);
-		applyVideoDictionaryOptions(fmt, size != null, options);
+		EncodeSettings.applyVideoDictionaryOptions(fmt, videoIn.codecpar().bit_rate(), outW, outH, options);
 		if (avcodec_open2(videoEnc, encoder, options) < 0) {
+			LOG.warn("avcodec_open2 failed for {} {}x{} format={}", codecName, outW, outH, fmt);
 			av_dict_free(options);
 			return false;
 		}
@@ -417,7 +424,11 @@ public class Session implements AutoCloseable {
 		if (avcodec_parameters_from_context(videoOut.codecpar(), videoEnc) < 0) {
 			return false;
 		}
-		videoOut.codecpar().codec_tag(0);
+		if ("hevc".equals(fmt)) {
+			videoOut.codecpar().codec_tag(CODEC_TAG_HVC1);
+		} else {
+			videoOut.codecpar().codec_tag(0);
+		}
 		videoOut.time_base(videoEnc.time_base());
 		videoOut.avg_frame_rate(fps);
 		videoOutIdx = 0;
@@ -430,19 +441,6 @@ public class Session implements AutoCloseable {
 		videoEncFrame.width(outW);
 		videoEncFrame.height(outH);
 		return av_frame_get_buffer(videoEncFrame, 32) >= 0;
-	}
-
-	private static void applyVideoDictionaryOptions(
-			final String format,
-			final boolean reencode,
-			final AVDictionary options) {
-		final String fmt = normalizeFormat(format);
-		if ("webm".equals(fmt)) {
-			av_dict_set(options, "crf", Integer.toString(CRF_VP9), 0);
-		} else if (!"wmv".equals(fmt)) {
-			av_dict_set(options, "crf", Integer.toString(CRF_H264), 0);
-			av_dict_set(options, "preset", reencode ? PRESET_REENCODE : PRESET_FAST, 0);
-		}
 	}
 
 	private boolean openAudio(final ClipJob job) {

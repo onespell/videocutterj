@@ -2,13 +2,13 @@ package net.scriptorium.videocutter;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Locale;
+import net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings;
 
 public final class OutputFiles {
 
 	public static Path next(final Path source, final String format, final int numOfJobs) {
 		final String root = stripExtension(source.toString());
-		final String ext = format.toLowerCase(Locale.ROOT);
+		final String ext = EncodeSettings.outputExtension(format);
 		final int width = Math.max(2, Integer.toString(numOfJobs).length());
 		final String pattern = root + "_%0" + width + "d." + ext;
 		int i = 1;

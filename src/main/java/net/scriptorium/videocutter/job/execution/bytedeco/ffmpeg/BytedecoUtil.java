@@ -8,10 +8,13 @@ import org.bytedeco.ffmpeg.avformat.AVStream;
 import org.bytedeco.ffmpeg.avutil.AVDictionary;
 import org.bytedeco.ffmpeg.avutil.AVRational;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.FFmpegLogCallback;
 
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+
+import static org.bytedeco.ffmpeg.global.avutil.AV_LOG_WARNING;
 
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_rescale_ts;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_unref;
@@ -40,6 +43,22 @@ import static org.bytedeco.ffmpeg.global.avutil.av_rescale_q;
 
 public class BytedecoUtil {
 
+	private static volatile boolean ffmpegLogConfigured;
+
+	public static void ensureFfmpegLogging() {
+		if (ffmpegLogConfigured) {
+			return;
+		}
+		synchronized (BytedecoUtil.class) {
+			if (ffmpegLogConfigured) {
+				return;
+			}
+			FFmpegLogCallback.set();
+			FFmpegLogCallback.setLevel(AV_LOG_WARNING);
+			ffmpegLogConfigured = true;
+		}
+	}
+
 	/**
 	 * Decode/encode/mux via bytedeco FFmpeg natives.
 	 *
@@ -60,6 +79,7 @@ public class BytedecoUtil {
 			return false;
 		}
 		try {
+			ensureFfmpegLogging();
 			FFmpegFrameGrabber.tryLoad();
 		} catch (final Exception e) {
 			return false;
@@ -91,6 +111,7 @@ public class BytedecoUtil {
 			return false;
 		}
 		try {
+			ensureFfmpegLogging();
 			FFmpegFrameGrabber.tryLoad();
 		} catch (final Exception e) {
 			return false;
@@ -303,6 +324,7 @@ public class BytedecoUtil {
 		return switch (fmt) {
 			case "mkv" -> "matroska";
 			case "wmv" -> "asf";
+			case "hevc" -> "mp4";
 			default -> fmt;
 		};
 	}

@@ -4,7 +4,11 @@ import net.scriptorium.videocutter.FrameSize;
 import net.scriptorium.videocutter.Settings;
 import net.scriptorium.videocutter.job.ClipJob;
 import net.scriptorium.videocutter.job.ShotJob;
+import net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings;
+import net.scriptorium.videocutter.job.execution.bytedeco.ffmpeg.BytedecoUtil;
 import net.scriptorium.videocutter.media.Analysis;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.FFmpegFrameRecorder;
 import org.bytedeco.javacv.Frame;
@@ -22,14 +26,9 @@ import java.util.Iterator;
 import java.util.Locale;
 
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.AUDIO_BITRATE;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.CRF_H264;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.CRF_VP9;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.PRESET_FAST;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.PRESET_REENCODE;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.WMV_VIDEO_BITRATE;
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.audioCodecName;
+import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.containerFormat;
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.normalizeFormat;
-import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.videoCodecName;
 import static org.bytedeco.ffmpeg.global.avutil.AV_PIX_FMT_YUV420P;
 
 public class JavacvUtil {
@@ -108,18 +107,21 @@ public class JavacvUtil {
 			final long startUs,
 			final long endUs) throws Exception {
 		final boolean mute = job.audio() != null && job.audio().isNoSound();
+		int outW = 0;
+		int outH = 0;
+		BytedecoUtil.ensureFfmpegLogging();
 		try (final FFmpegFrameGrabber grabber = Analysis.openGrabber(source)) {
 			final int srcW = Math.max(grabber.getImageWidth(), 1);
 			final int srcH = Math.max(grabber.getImageHeight(), 1);
 			final FrameSize size = job.size();
-			int outW = size == null ? srcW : size.resolveWidth(srcW, srcH);
-			int outH = size == null ? srcH : size.resolveHeight(srcW, srcH);
+			outW = size == null ? srcW : size.resolveWidth(srcW, srcH);
+			outH = size == null ? srcH : size.resolveHeight(srcW, srcH);
 			outW = Math.max(2, outW & ~1);
 			outH = Math.max(2, outH & ~1);
 
 			final int audioChannels = mute ? 0 : Math.max(grabber.getAudioChannels(), 0);
 			try (final FFmpegFrameRecorder recorder = new FFmpegFrameRecorder(resultFile.toFile(), outW, outH, audioChannels)) {
-				configureJavacvRecorder(recorder, grabber, job.format(), size != null);
+				configureJavacvRecorder(recorder, grabber, job.format(), outW, outH);
 				recorder.start();
 				grabber.setTimestamp(startUs, true);
 				Frame frame;
@@ -151,6 +153,11 @@ public class JavacvUtil {
 				}
 				recorder.stop();
 			}
+		} catch (Exception e) {
+			LogManager.getLogger(JavacvUtil.class).error(
+					"failed to transcode format={} {}x{}", job.format(), outW, outH, e);
+			throw new RuntimeException(
+					"Transcode failed: format=" + job.format() + " " + outW + "x" + outH + ": " + e.getMessage(), e);
 		}
 		return true;
 	}
@@ -159,23 +166,35 @@ public class JavacvUtil {
 			final FFmpegFrameRecorder recorder,
 			final FFmpegFrameGrabber grabber,
 			final String format,
-			final boolean reencode) throws Exception {
+			final int outWidth,
+			final int outHeight) throws Exception {
 		final String fmt = normalizeFormat(format);
-		recorder.setFormat(fmt);
+		recorder.setFormat(containerFormat(format));
 		recorder.setFrameRate(grabber.getFrameRate() > 0 ? grabber.getFrameRate() : 25);
-		recorder.setVideoOption("threads", Integer.toString(mediaThreads()));
-		if ("webm".equals(fmt)) {
-			recorder.setVideoCodecName(videoCodecName(fmt));
-			recorder.setVideoOption("crf", Integer.toString(CRF_VP9));
-		} else if ("wmv".equals(fmt)) {
-			recorder.setVideoCodecName(videoCodecName(fmt));
-			recorder.setVideoBitrate(WMV_VIDEO_BITRATE);
-		} else {
-			recorder.setVideoCodecName(videoCodecName(fmt));
-			recorder.setVideoOption("crf", Integer.toString(CRF_H264));
-			recorder.setVideoOption("preset", reencode ? PRESET_REENCODE : PRESET_FAST);
-		}
 		recorder.setPixelFormat(AV_PIX_FMT_YUV420P);
+		if (!"hevc".equals(fmt)) {
+			recorder.setVideoOption("threads", Integer.toString(mediaThreads()));
+		}
+		EncodeSettings.applyJavacvVideoOptions(fmt, grabber.getVideoBitrate(), outWidth, outHeight, new EncodeSettings.VideoOptionSetter() {
+			@Override
+			public void setVideoCodecName(final String codec) {
+				recorder.setVideoCodecName(codec);
+			}
+
+			public void setVideoCodec(final int codecId) {
+				recorder.setVideoCodec(codecId);
+			}
+
+			@Override
+			public void setVideoOption(final String key, final String value) {
+				recorder.setVideoOption(key, value);
+			}
+
+			@Override
+			public void setVideoBitrate(final int bitrate) {
+				recorder.setVideoBitrate(bitrate);
+			}
+		});
 		if (recorder.getAudioChannels() > 0) {
 			recorder.setSampleRate(grabber.getSampleRate() > 0 ? grabber.getSampleRate() : 48_000);
 			recorder.setAudioBitrate(AUDIO_BITRATE);

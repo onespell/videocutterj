@@ -106,6 +106,7 @@ final class ClipBox {
         formatBox.addSelectionListener(new SelectionAdapter() {
             @Override
             public void widgetSelected(SelectionEvent e) {
+                onFormatSelect();
                 onSelect.run();
             }
         });
@@ -164,10 +165,31 @@ final class ClipBox {
         time = value;
     }
 
-    private void onSizeSelect() {
-        if (sizeBox.getText().equals(defaultSize)) {
+
+    private void onFormatSelect() {
+        if (requiresReencodeFormat(formatBox.getText())) {
+            reencodeChk.setSelection(true);
+            reencodeChk.setEnabled(false);
+        } else if (sizeBox.getText().equals(defaultSize)) {
             reencodeChk.setSelection(false);
             reencodeChk.setEnabled(true);
+        }
+    }
+
+    private static boolean requiresReencodeFormat(String format) {
+        if (format == null) {
+            return false;
+        }
+        final String fmt = format.toLowerCase(java.util.Locale.ROOT);
+        return "webm".equals(fmt) || "wmv".equals(fmt) || "hevc".equals(fmt);
+    }
+
+    private void onSizeSelect() {
+        if (sizeBox.getText().equals(defaultSize)) {
+            if (!requiresReencodeFormat(formatBox.getText())) {
+                reencodeChk.setSelection(false);
+                reencodeChk.setEnabled(true);
+            }
         } else {
             reencodeChk.setSelection(true);
             reencodeChk.setEnabled(false);
