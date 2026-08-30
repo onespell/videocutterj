@@ -50,6 +50,7 @@ public class MassTranscoder {
 				FileVisitResult result = FileVisitResult.CONTINUE;
 				final String filePathStr = filePath.toString();
 				if (!attrs.isSymbolicLink() && !processed.contains(filePathStr) && isVideo(filePath)) {
+					System.out.println("processing " + filePathStr + "...");
 					final long srcFileSize = Files.size(filePath);
 					final ShallowMediaInfo info = Analysis.shallowMediaInfo(filePath);
 					final int finishMillis = info.getDurationMillis();
