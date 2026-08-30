@@ -5,8 +5,8 @@ import net.scriptorium.videocutter.job.execution.ClipJobPerformer;
 import net.scriptorium.videocutter.media.Analysis;
 import net.scriptorium.videocutter.media.ShallowMediaInfo;
 import net.scriptorium.videocutter.util.FileUtil;
-import org.apache.logging.log4j.LogManager;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
@@ -51,12 +51,13 @@ public class MassTranscoder {
 				FileVisitResult result = FileVisitResult.CONTINUE;
 				final String filePathStr = filePath.toString();
 				if (!attrs.isSymbolicLink() && !processed.contains(filePathStr) && isVideo(filePath)) {
-					System.out.println("processing " + filePathStr + "...");
 					final long srcFileSize = Files.size(filePath);
+					System.out.println("processing " + filePathStr + "(" + srcFileSize + " bytes)...");
 					final ShallowMediaInfo info = Analysis.shallowMediaInfo(filePath);
 					final int finishMillis = info.getDurationMillis();
 					final String format = "MP4".equals(info.getFormat()) ? "HEVC" : info.getFormat();
 					final Path out = next(filePath, format, 1);
+					final File outFile = out.toFile();
 					try {
 						final FrameSize size = new FrameSize(String.valueOf(info.getWidth()), String.valueOf(info.getHeight()));
 						final MediaStream video = info.getVideo();
@@ -67,9 +68,10 @@ public class MassTranscoder {
 							final Future<Boolean> future = executor.submit(task);
 							do {
 								Thread.sleep(100);
-								final long outFileSize = Files.size(out);
+								final long outFileSize = outFile.isFile() ? outFile.length() : 0;
 								if (outFileSize >= srcFileSize) {
 									future.cancel(true);
+									System.out.println("\tcancelled - too large output");
 									break;
 								}
 							} while (!future.isDone());
@@ -92,7 +94,8 @@ public class MassTranscoder {
 									filePathStr).getBytes(), StandardOpenOption.APPEND);
 						}
 					} catch (final Exception e) {
-						LogManager.getLogger(MassTranscoder.class).error("failed to transcode file " + filePathStr, e);
+						System.out.println("failed to transcode file " + filePathStr);
+						e.printStackTrace();
 						throw new UncheckedException(e);
 					} finally {
 						FileUtil.delete(out);
