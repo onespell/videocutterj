@@ -65,6 +65,7 @@ public class MassTranscoder {
 						final MediaStream video = info.getVideo();
 						final ClipJob job = new ClipJob(0, finishMillis, format, size, video, null);
 						boolean transcoded = false;
+						boolean processed = false;
 						{
 							final Callable<Boolean> task = () -> ClipJobPerformer.perform(job, filePath, out);
 							final Future<Boolean> future = executor.submit(task);
@@ -79,7 +80,10 @@ public class MassTranscoder {
 							} while (!future.isDone());
 							try {
 								transcoded = future.get();
-							} catch (final CancellationException | InterruptedException e) {
+								processed = true;
+							} catch (final CancellationException e) {
+								processed = true;
+							} catch (final InterruptedException e) {
 								//
 							} catch (final ExecutionException e) {
 								result = FileVisitResult.TERMINATE;
@@ -92,6 +96,8 @@ public class MassTranscoder {
 								Files.move(out, filePath, StandardCopyOption.REPLACE_EXISTING);
 								System.out.println("\treplaced saving " + Util.formatFileSize(delta));
 							}
+						}
+						if (processed) {
 							Files.write(log, filePathStr.getBytes(), StandardOpenOption.APPEND);
 						}
 					} catch (final Exception e) {

@@ -82,6 +82,7 @@ import static org.bytedeco.ffmpeg.global.avutil.av_frame_make_writable;
 import static org.bytedeco.ffmpeg.global.avutil.av_frame_unref;
 import static org.bytedeco.ffmpeg.global.avutil.av_inv_q;
 import static org.bytedeco.ffmpeg.global.avutil.av_rescale_q;
+import static org.bytedeco.ffmpeg.global.avutil.av_samples_set_silence;
 import static org.bytedeco.ffmpeg.global.swresample.swr_alloc_set_opts2;
 import static org.bytedeco.ffmpeg.global.swresample.swr_convert;
 import static org.bytedeco.ffmpeg.global.swresample.swr_free;
@@ -172,6 +173,8 @@ public class Session implements AutoCloseable {
 
 	private boolean videoPastEnd;
 
+	private boolean audioEncFlushed;
+
 	private static void freeFrame(final AVFrame frame) {
 		if (frame != null && !frame.isNull()) {
 			av_frame_free(frame);
@@ -189,6 +192,10 @@ public class Session implements AutoCloseable {
 			return Math.max(1, Runtime.getRuntime().availableProcessors());
 		}
 		return Settings.instance().mediaThreads();
+	}
+
+	private int audioFrameSize() {
+		return Math.max(audioEnc.frame_size(), 1024);
 	}
 
 	private static int pickSampleFmt(final AVCodec codec) {
@@ -526,7 +533,7 @@ public class Session implements AutoCloseable {
 			}
 		}
 
-		final int frameSize = Math.max(audioEnc.frame_size(), 1024);
+		final int frameSize = audioFrameSize();
 		audioFifo = av_audio_fifo_alloc(audioEnc.sample_fmt(), audioEnc.ch_layout().nb_channels(), frameSize * 8);
 		if (audioFifo == null || audioFifo.isNull()) {
 			return false;
@@ -535,7 +542,7 @@ public class Session implements AutoCloseable {
 		if (audioEncFrame == null || audioEncFrame.isNull()) {
 			return false;
 		}
-		audioEncFrame.nb_samples(Math.max(audioEnc.frame_size(), 1));
+		audioEncFrame.nb_samples(frameSize);
 		audioEncFrame.format(audioEnc.sample_fmt());
 		audioEncFrame.ch_layout(audioEnc.ch_layout());
 		audioEncFrame.sample_rate(audioEnc.sample_rate());
@@ -720,16 +727,24 @@ public class Session implements AutoCloseable {
 	}
 
 	private boolean drainAudioFifo(final boolean flush) {
-		final int frameSize = Math.max(audioEnc.frame_size(), 1);
+		final int frameSize = audioFrameSize();
 		while (av_audio_fifo_size(audioFifo) >= frameSize
 				|| (flush && av_audio_fifo_size(audioFifo) > 0)) {
-			final int nb = Math.min(frameSize, av_audio_fifo_size(audioFifo));
+			final int available = av_audio_fifo_size(audioFifo);
+			final int nb = Math.min(frameSize, available);
+			final int encodeSamples = flush && nb < frameSize ? frameSize : nb;
 			if (av_frame_make_writable(audioEncFrame) < 0) {
 				return false;
 			}
-			audioEncFrame.nb_samples(nb);
+			audioEncFrame.nb_samples(encodeSamples);
 			if (av_audio_fifo_read(audioFifo, audioEncFrame.data(), nb) < nb) {
 				return false;
+			}
+			if (encodeSamples > nb) {
+				if (av_samples_set_silence(audioEncFrame.data(), nb, encodeSamples - nb,
+						audioEnc.ch_layout().nb_channels(), audioEnc.sample_fmt()) < 0) {
+					return false;
+				}
 			}
 			audioEncFrame.pts(audioPts);
 			audioPts += nb;
@@ -769,7 +784,24 @@ public class Session implements AutoCloseable {
 
 	private boolean flushAudioEncoder() {
 		avcodec_send_frame(audioEnc, null);
-		return drainAudioPackets();
+		while (true) {
+			av_packet_unref(outPacket);
+			final int ret = avcodec_receive_packet(audioEnc, outPacket);
+			if (ret == AVERROR_EOF()) {
+				audioEncFlushed = true;
+				return true;
+			}
+			if (ret == AVERROR_EAGAIN()) {
+				audioEncFlushed = true;
+				return true;
+			}
+			if (ret < 0) {
+				return false;
+			}
+			if (!writePacket(outPacket, audioEnc, audioOut, audioOutIdx)) {
+				return false;
+			}
+		}
 	}
 
 	private boolean drainAudioPackets() {
@@ -785,6 +817,32 @@ public class Session implements AutoCloseable {
 			if (!writePacket(outPacket, audioEnc, audioOut, audioOutIdx)) {
 				return false;
 			}
+		}
+	}
+
+	private void flushAudioEncoderBestEffort() {
+		if (audioEnc == null || audioEnc.isNull() || audioEncFlushed) {
+			return;
+		}
+		try {
+			avcodec_send_frame(audioEnc, null);
+			while (true) {
+				av_packet_unref(outPacket);
+				final int ret = avcodec_receive_packet(audioEnc, outPacket);
+				if (ret == AVERROR_EOF() || ret == AVERROR_EAGAIN()) {
+					return;
+				}
+				if (ret < 0) {
+					return;
+				}
+				try {
+					writePacket(outPacket, audioEnc, audioOut, audioOutIdx);
+				} catch (final Exception ignored) {
+					//
+				}
+			}
+		} catch (final Exception ignored) {
+			//
 		}
 	}
 
@@ -838,6 +896,9 @@ public class Session implements AutoCloseable {
 		freeCodec(videoDec);
 		freeCodec(videoEnc);
 		freeCodec(audioDec);
+		if (audioEnc != null && !audioEnc.isNull() && headerWritten) {
+			flushAudioEncoderBestEffort();
+		}
 		freeCodec(audioEnc);
 		if (ofmt != null && !ofmt.isNull()) {
 			if (headerWritten) {
