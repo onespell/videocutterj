@@ -71,7 +71,7 @@ public class MassTranscoder {
 								final long outFileSize = outFile.isFile() ? outFile.length() : 0;
 								if (outFileSize >= srcFileSize) {
 									future.cancel(true);
-									System.out.println("\tcancelled - too large output");
+									System.out.println("\tcancelled - output too large");
 									break;
 								}
 							} while (!future.isDone());
