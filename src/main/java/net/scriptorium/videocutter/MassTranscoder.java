@@ -52,7 +52,7 @@ public class MassTranscoder {
 				final String filePathStr = filePath.toString();
 				if (!attrs.isSymbolicLink() && !processed.contains(filePathStr) && isVideo(filePath)) {
 					final long srcFileSize = Files.size(filePath);
-					System.out.println("processing " + filePathStr + "(" + srcFileSize + " bytes)...");
+					System.out.println("processing " + filePathStr + " (" + srcFileSize + " bytes)...");
 					final ShallowMediaInfo info = Analysis.shallowMediaInfo(filePath);
 					final int finishMillis = info.getDurationMillis();
 					final String format = "MP4".equals(info.getFormat()) ? "HEVC" : info.getFormat();

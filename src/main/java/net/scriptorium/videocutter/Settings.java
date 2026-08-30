@@ -129,7 +129,8 @@ public final class Settings {
 	}
 
 	public int mediaThreads() {
-		return Math.max(1, (int) (numOfProcessors * 1.5));
+		// return Math.max(1, (int) (numOfProcessors * 1.5));
+		return Math.max(1, numOfProcessors);
 	}
 
 	public Path initialDir() {
