@@ -43,4 +43,12 @@ public class Util {
 		}
 		return StringUtils.isBlank(s) ? null : Path.of(s).toAbsolutePath();
 	}
+
+	public static String formatFileSize(final long v) {
+		if (v < 1024) {
+			return v + " B";
+		}
+		final int z = (63 - Long.numberOfLeadingZeros(v)) / 10;
+		return String.format("%.1f %sB", (double) v / (1L << (z * 10)), " KMGTPE".charAt(z));
+	}
 }

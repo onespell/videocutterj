@@ -20,6 +20,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -53,7 +54,7 @@ public class MassTranscoder {
 				final String filePathStr = filePath.toString();
 				if (!attrs.isSymbolicLink() && !processed.contains(filePathStr) && isVideo(filePath)) {
 					final long srcFileSize = Files.size(filePath);
-					System.out.println("processing " + filePathStr + " (" + srcFileSize + " bytes)...");
+					System.out.println("processing " + filePathStr + " (" + Util.formatFileSize(srcFileSize) + ")...");
 					final ShallowMediaInfo info = Analysis.shallowMediaInfo(filePath);
 					final int finishMillis = info.getDurationMillis();
 					final String format = "MP4".equals(info.getFormat()) ? "HEVC" : info.getFormat();
@@ -78,7 +79,7 @@ public class MassTranscoder {
 							} while (!future.isDone());
 							try {
 								transcoded = future.get();
-							} catch (final InterruptedException e) {
+							} catch (final CancellationException | InterruptedException e) {
 								//
 							} catch (final ExecutionException e) {
 								result = FileVisitResult.TERMINATE;
@@ -89,10 +90,9 @@ public class MassTranscoder {
 							final long delta = srcFileSize - outFileSize;
 							if (delta > 0) {
 								Files.move(out, filePath, StandardCopyOption.REPLACE_EXISTING);
-								System.out.println("\treplaced saving " + delta + " bytes");
+								System.out.println("\treplaced saving " + Util.formatFileSize(delta));
 							}
-							Files.write(log, (System.lineSeparator() +
-									filePathStr).getBytes(), StandardOpenOption.APPEND);
+							Files.write(log, filePathStr.getBytes(), StandardOpenOption.APPEND);
 						}
 					} catch (final Exception e) {
 						System.out.println("failed to transcode file " + filePathStr);
