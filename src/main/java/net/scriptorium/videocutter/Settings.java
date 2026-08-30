@@ -40,6 +40,10 @@ public final class Settings {
 				}
 			}
 		}
+		return load(properties);
+	}
+
+	public static Settings load(final Properties properties) {
 		instance = new Settings();
 		instance.apply(properties);
 		return instance;

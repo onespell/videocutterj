@@ -30,6 +30,7 @@ import static net.scriptorium.videocutter.job.JobUtil.next;
 public class MassTranscoder {
 
 	public static void main(final String[] args) throws Exception {
+		Util.init();
 		final Path path = Util.getPathArgument(args);
 		if (path == null || !path.toFile().isDirectory()) {
 			System.out.println("target directory is not specified");
