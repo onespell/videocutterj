@@ -42,6 +42,7 @@ public class MassTranscoder {
 			processed = new HashSet<>(Files.readAllLines(log));
 		} else {
 			processed = Collections.emptySet();
+			Files.createFile(log);
 		}
 		final ExecutorService executor = Executors.newSingleThreadExecutor(r -> new Thread(r, "vc-mass-transcode"));
 		final FileVisitor<Path> visitor = new SimpleFileVisitor<>() {
