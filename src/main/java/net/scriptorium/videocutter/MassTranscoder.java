@@ -26,8 +26,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import static net.scriptorium.videocutter.job.JobUtil.next;
-
 public class MassTranscoder {
 
 	public static void main(final String[] args) throws Exception {
@@ -58,7 +56,7 @@ public class MassTranscoder {
 					final ShallowMediaInfo info = Analysis.shallowMediaInfo(filePath);
 					final int finishMillis = info.getDurationMillis();
 					final String format = "MP4".equals(info.getFormat()) ? "HEVC" : info.getFormat();
-					final Path out = next(filePath, format, 1);
+					final Path out = File.createTempFile("vc-mass-transcode-", ".tmp").toPath();
 					final File outFile = out.toFile();
 					try {
 						final FrameSize size = new FrameSize(String.valueOf(info.getWidth()), String.valueOf(info.getHeight()));
@@ -98,7 +96,8 @@ public class MassTranscoder {
 							}
 						}
 						if (processed) {
-							Files.write(log, filePathStr.getBytes(), StandardOpenOption.APPEND);
+							Files.write(log, (filePathStr +
+									System.lineSeparator()).getBytes(), StandardOpenOption.APPEND);
 						}
 					} catch (final Exception e) {
 						System.out.println("failed to transcode file " + filePathStr);
