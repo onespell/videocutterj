@@ -13,6 +13,13 @@ final class Dialogs {
 		return box.open() == SWT.YES;
 	}
 
+	static void warn(final Shell parent, final String message) {
+		final MessageBox box = new MessageBox(parent, SWT.ICON_WARNING | SWT.OK);
+		box.setText("");
+		box.setMessage(message);
+		box.open();
+	}
+
 	static void error(final Shell parent, final String message) {
 		final MessageBox box = new MessageBox(parent, SWT.ICON_ERROR | SWT.OK);
 		box.setText("");

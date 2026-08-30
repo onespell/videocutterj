@@ -14,8 +14,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
 
-import static org.bytedeco.ffmpeg.global.avutil.AV_LOG_WARNING;
-
+import static net.scriptorium.videocutter.job.JobUtil.throwIfInterrupted;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_rescale_ts;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_unref;
 import static org.bytedeco.ffmpeg.global.avcodec.avcodec_parameters_copy;
@@ -37,6 +36,7 @@ import static org.bytedeco.ffmpeg.global.avformat.avio_closep;
 import static org.bytedeco.ffmpeg.global.avformat.avio_open;
 import static org.bytedeco.ffmpeg.global.avutil.AVMEDIA_TYPE_AUDIO;
 import static org.bytedeco.ffmpeg.global.avutil.AVMEDIA_TYPE_VIDEO;
+import static org.bytedeco.ffmpeg.global.avutil.AV_LOG_WARNING;
 import static org.bytedeco.ffmpeg.global.avutil.AV_NOPTS_VALUE;
 import static org.bytedeco.ffmpeg.global.avutil.AV_TIME_BASE;
 import static org.bytedeco.ffmpeg.global.avutil.av_rescale_q;
@@ -74,7 +74,7 @@ public class BytedecoUtil {
 			final Path source,
 			final Path resultFile,
 			final long startUs,
-			final long endUs) {
+			final long endUs) throws InterruptedException {
 		if (endUs <= startUs) {
 			return false;
 		}
@@ -86,6 +86,9 @@ public class BytedecoUtil {
 		}
 		try (final Session session = new Session()) {
 			return session.run(job, source, resultFile, startUs, endUs);
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw e;
 		} catch (final Exception e) {
 			return false;
 		}
@@ -106,7 +109,7 @@ public class BytedecoUtil {
 			final Path source,
 			final Path resultFile,
 			final long startUs,
-			final long endUs) {
+			final long endUs) throws InterruptedException {
 		if (endUs <= startUs) {
 			return false;
 		}
@@ -216,6 +219,7 @@ public class BytedecoUtil {
 			final boolean[] hasLastDts = new boolean[outIndex];
 
 			while (av_read_frame(ifmt, packet) >= 0) {
+				throwIfInterrupted();
 				try {
 					final int inIdx = packet.stream_index();
 					if (inIdx < 0 || inIdx >= nb || mapping[inIdx] < 0) {
@@ -295,6 +299,9 @@ public class BytedecoUtil {
 			av_write_trailer(ofmt);
 			headerWritten = false;
 			return true;
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw e;
 		} catch (final Exception e) {
 			return false;
 		} finally {

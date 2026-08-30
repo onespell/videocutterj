@@ -8,7 +8,6 @@ import net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings;
 import net.scriptorium.videocutter.job.execution.bytedeco.ffmpeg.BytedecoUtil;
 import net.scriptorium.videocutter.media.Analysis;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.FFmpegFrameRecorder;
 import org.bytedeco.javacv.Frame;
@@ -25,6 +24,7 @@ import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.Locale;
 
+import static net.scriptorium.videocutter.job.JobUtil.throwIfInterrupted;
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.AUDIO_BITRATE;
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.audioCodecName;
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.containerFormat;
@@ -47,7 +47,7 @@ public class JavacvUtil {
 			}
 			return writeImage(image, job.format(), resultFile);
 		} catch (final Exception e) {
-			throw new IOException(e.getMessage(), e);
+			throw new IOException("failed to take shot", e);
 		}
 	}
 
@@ -126,6 +126,7 @@ public class JavacvUtil {
 				grabber.setTimestamp(startUs, true);
 				Frame frame;
 				while ((frame = grabber.grabFrame(!mute, true, true, false, false)) != null) {
+					throwIfInterrupted();
 					final long ts = frame.timestamp;
 					if (ts < 0) {
 						continue;
@@ -153,7 +154,10 @@ public class JavacvUtil {
 				}
 				recorder.stop();
 			}
-		} catch (Exception e) {
+		} catch (final InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw e;
+		} catch (final Exception e) {
 			LogManager.getLogger(JavacvUtil.class).error(
 					"failed to transcode format={} {}x{}", job.format(), outW, outH, e);
 			throw new RuntimeException(
@@ -181,6 +185,7 @@ public class JavacvUtil {
 				recorder.setVideoCodecName(codec);
 			}
 
+			@Override
 			public void setVideoCodec(final int codecId) {
 				recorder.setVideoCodec(codecId);
 			}

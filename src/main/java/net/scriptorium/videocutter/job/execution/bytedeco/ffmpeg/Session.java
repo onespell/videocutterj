@@ -25,6 +25,7 @@ import org.bytedeco.javacpp.PointerPointer;
 import java.nio.file.Path;
 import java.util.Locale;
 
+import static net.scriptorium.videocutter.job.JobUtil.throwIfInterrupted;
 import static net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings.audioCodecName;
 import static org.bytedeco.ffmpeg.global.avcodec.AV_CODEC_FLAG_GLOBAL_HEADER;
 import static org.bytedeco.ffmpeg.global.avcodec.av_packet_rescale_ts;
@@ -96,7 +97,9 @@ public class Session implements AutoCloseable {
 
 	private static final Logger LOG = LogManager.getLogger(Session.class);
 
-	/** MP4 fourcc {@code hvc1} for HEVC playback compatibility. */
+	/**
+	 * MP4 fourcc {@code hvc1} for HEVC playback compatibility.
+	 */
 	private static final int CODEC_TAG_HVC1 = 0x31637668;
 
 	private final AVFormatContext ifmt = new AVFormatContext(null);
@@ -214,7 +217,7 @@ public class Session implements AutoCloseable {
 			final Path source,
 			final Path resultFile,
 			final long startUs,
-			final long endUs) {
+			final long endUs) throws InterruptedException {
 		this.startUs = startUs;
 		this.endUs = endUs;
 		timeBaseQ.num(1);
@@ -305,6 +308,7 @@ public class Session implements AutoCloseable {
 		av_seek_frame(ifmt, -1, startUs, AVSEEK_FLAG_BACKWARD);
 
 		while (av_read_frame(ifmt, inPacket) >= 0) {
+			throwIfInterrupted();
 			try {
 				final int inIdx = inPacket.stream_index();
 				if (inIdx == videoInIdx) {

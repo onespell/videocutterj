@@ -2,6 +2,7 @@ package net.scriptorium.videocutter.ui;
 
 import net.scriptorium.videocutter.L10n;
 import net.scriptorium.videocutter.Session;
+import net.scriptorium.videocutter.UncheckedException;
 import net.scriptorium.videocutter.job.Job;
 import net.scriptorium.videocutter.job.execution.JobRunner;
 import org.apache.logging.log4j.LogManager;
@@ -22,7 +23,11 @@ import org.eclipse.swt.widgets.Shell;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.function.IntConsumer;
+
+import static net.scriptorium.videocutter.job.JobUtil.throwIfInterrupted;
 
 final class JobBox {
 
@@ -149,33 +154,58 @@ final class JobBox {
 		final int numOfJobs = items.size();
 		final Shell shell = frame.getShell();
 		final Display display = shell.getDisplay();
-		final ProgressSplash splash = new ProgressSplash(shell, L10n.t("executing"), sorted.size());
+		final ExecutorService executor = Executors.newSingleThreadExecutor(r -> new Thread(r, "vc-jobs"));
+		final ProgressSplash splash = new ProgressSplash(
+				shell, L10n.t("executing"), sorted.size(), executor::shutdownNow);
 		splash.show();
-		final Thread worker = new Thread(() -> {
+		executor.submit(() -> {
 			boolean failed = false;
-			for (final Job job : sorted) {
-				try {
-					if (!JobRunner.execute(job, session.filePath(), numOfJobs)) {
+			boolean cancelled = false;
+			try {
+				for (final Job job : sorted) {
+					throwIfInterrupted();
+					try {
+						if (!JobRunner.execute(job, session.filePath(), numOfJobs)) {
+							failed = true;
+							break;
+						}
+					} catch (final InterruptedException ex) {
+						Thread.currentThread().interrupt();
+						cancelled = true;
+						break;
+					} catch (final Exception ex) {
+						if (Thread.interrupted()) {
+							cancelled = true;
+							break;
+						}
 						failed = true;
 						break;
 					}
-				} catch (final Exception ex) {
-					failed = true;
-					break;
+					display.asyncExec(splash::increment);
 				}
-				display.asyncExec(splash::increment);
+				cancelled = cancelled || Thread.interrupted();
+			} catch (final Exception e) {
+				final Throwable t = (e instanceof UncheckedException) ? ((UncheckedException) e).unwrap() : e;
+				if (t instanceof InterruptedException) {
+					Thread.currentThread().interrupt();
+					cancelled = true;
+				}
+			} finally {
+				final boolean fail = failed;
+				final boolean wasCancelled = cancelled;
+				display.asyncExec(() -> {
+					splash.close();
+					if (wasCancelled) {
+						Dialogs.warn(shell, L10n.t("jobCancelled"));
+					} else if (fail) {
+						Dialogs.error(shell, L10n.t("jobFail"));
+					} else {
+						reset();
+					}
+				});
+				executor.shutdown();
 			}
-			final boolean fail = failed;
-			display.asyncExec(() -> {
-				splash.close();
-				if (fail) {
-					Dialogs.error(shell, L10n.t("jobFail"));
-				} else {
-					reset();
-				}
-			});
-		}, "vc-jobs");
-		worker.start();
+		});
 		while (!splash.isDisposed() && !display.isDisposed()) {
 			if (!display.readAndDispatch()) {
 				display.sleep();

@@ -3,6 +3,7 @@ package net.scriptorium.videocutter.ui;
 import net.scriptorium.videocutter.L10n;
 import net.scriptorium.videocutter.Session;
 import net.scriptorium.videocutter.Settings;
+import net.scriptorium.videocutter.UncheckedException;
 import net.scriptorium.videocutter.media.Analysis;
 import net.scriptorium.videocutter.media.FrameSink;
 import net.scriptorium.videocutter.media.MediaInfo;
@@ -93,7 +94,7 @@ public final class MainWindow {
 			toolBox.frame.setLayoutData(gridData);
 		}
 		toolBox.jobBox.setOnJump(ms -> {
-			int p = viewer.mediaBar.goTo(ms).getActual();
+			final int p = viewer.mediaBar.goTo(ms).getActual();
 			toolBox.shotBox.setTime(p);
 			toolBox.clipBox.setTime(p);
 		});
@@ -215,7 +216,7 @@ public final class MainWindow {
 			try {
 				return Analysis.inspect(filePath);
 			} catch (final Exception e) {
-				throw new RuntimeException(e);
+				throw new UncheckedException(e);
 			}
 		}).whenComplete((info, error) -> display.asyncExec(() -> {
 			splash.close();
@@ -237,7 +238,7 @@ public final class MainWindow {
 			try {
 				player.load(filePath.toString());
 			} catch (final Exception e) {
-				throw new RuntimeException(e);
+				throw new UncheckedException(e);
 			}
 		}).whenComplete((ignored, error) -> display.asyncExec(() -> {
 			if (shell.isDisposed()) {

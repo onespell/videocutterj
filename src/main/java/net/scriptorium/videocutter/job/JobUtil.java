@@ -1,11 +1,17 @@
-package net.scriptorium.videocutter;
+package net.scriptorium.videocutter.job;
 
 import net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public final class OutputFiles {
+public final class JobUtil {
+
+	public static void throwIfInterrupted() throws InterruptedException {
+		if (Thread.interrupted()) {
+			throw new InterruptedException();
+		}
+	}
 
 	public static Path next(final Path source, final String format, final int numOfJobs) {
 		final String prefix = stripExtension(source.toString());
@@ -31,7 +37,7 @@ public final class OutputFiles {
 		return filePath;
 	}
 
-	private OutputFiles() {
+	private JobUtil() {
 		//
 	}
 }

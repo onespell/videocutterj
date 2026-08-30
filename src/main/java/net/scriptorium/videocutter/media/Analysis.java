@@ -39,9 +39,9 @@ public final class Analysis {
 
 	}
 
-	public static MediaInfo inspect(final Path file) throws IOException {
-		final String format = formatOf(file);
-		try (final FFmpegFrameGrabber grabber = openGrabber(file)) {
+	public static MediaInfo inspect(final Path path) throws IOException {
+		final String format = formatOf(path);
+		try (final FFmpegFrameGrabber grabber = openGrabber(path)) {
 			final int width = Math.max(grabber.getImageWidth(), 1);
 			final int height = Math.max(grabber.getImageHeight(), 1);
 			final String ratio = aspectRatio(width, height);
@@ -49,15 +49,15 @@ public final class Analysis {
 			final int duration = durationMillis(grabber);
 			final Streams streams = mediaStreams(grabber);
 			final MediaStream video = streams.video().isEmpty() ? null : streams.video().get(0);
-			final List<Integer> keyFrames = keyFrames(file);
+			final List<Integer> keyFrames = keyFrames(path);
 			return new MediaInfo(format, duration, width, height, sizes, keyFrames, video, streams.audio());
 		} catch (final FrameGrabber.Exception e) {
-			throw new IOException(e.getMessage(), e);
+			throw new IOException("failed to collect media info from file " + path, e);
 		}
 	}
 
-	public static FFmpegFrameGrabber openGrabber(final Path file) throws FrameGrabber.Exception {
-		final FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(file.toFile());
+	public static FFmpegFrameGrabber openGrabber(final Path path) throws FrameGrabber.Exception {
+		final FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(path.toFile());
 		grabber.setOption("analyzeduration", "100000000");
 		grabber.setOption("probesize", "100000000");
 		grabber.setVideoOption("threads", Integer.toString(Math.max(1, Settings.instance().mediaThreads())));
@@ -126,8 +126,8 @@ public final class Analysis {
 		return new GrabbedFrame(frame, frameTs);
 	}
 
-	static String formatOf(final Path file) {
-		final String name = file.getFileName().toString();
+	static String formatOf(final Path path) {
+		final String name = path.getFileName().toString();
 		final int dot = name.lastIndexOf('.');
 		if (dot < 0 || dot == name.length() - 1) {
 			return "";
@@ -227,26 +227,26 @@ public final class Analysis {
 		return entry.value().getString();
 	}
 
-	static List<Integer> keyFrames(final Path file) throws IOException {
-		final List<Integer> pts = readKeyFrames(file, true);
+	static List<Integer> keyFrames(final Path path) throws IOException {
+		final List<Integer> pts = readKeyFrames(path, true);
 		if (!pts.isEmpty()) {
 			return pts;
 		}
-		return readKeyFrames(file, false);
+		return readKeyFrames(path, false);
 	}
 
-	private static List<Integer> readKeyFrames(final Path file, final boolean preferPts) throws IOException {
+	private static List<Integer> readKeyFrames(final Path path, final boolean preferPts) throws IOException {
 		final AVFormatContext fmt = new AVFormatContext(null);
 		final AVPacket packet = new AVPacket();
 		final List<Integer> result = new ArrayList<>();
 		boolean opened = false;
 		try {
-			if (avformat_open_input(fmt, file.toString(), null, null) < 0) {
-				throw new IOException("cannot open " + file);
+			if (avformat_open_input(fmt, path.toString(), null, null) < 0) {
+				throw new IOException("cannot open " + path);
 			}
 			opened = true;
 			if (avformat_find_stream_info(fmt, (AVDictionary) null) < 0) {
-				throw new IOException("cannot find stream info: " + file);
+				throw new IOException("cannot find stream info: " + path);
 			}
 			final int video = av_find_best_stream(fmt, AVMEDIA_TYPE_VIDEO, -1, -1, (org.bytedeco.ffmpeg.avcodec.AVCodec) null, 0);
 			if (video < 0) {

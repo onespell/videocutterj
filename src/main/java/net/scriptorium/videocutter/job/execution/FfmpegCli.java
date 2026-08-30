@@ -85,10 +85,10 @@ public final class FfmpegCli {
 		pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
 		pb.redirectError(ProcessBuilder.Redirect.DISCARD);
 		final Process process = pb.start();
-		final boolean finished = process.waitFor(2, TimeUnit.HOURS);
-		if (!finished) {
-			process.destroyForcibly();
-			return false;
+		while (!process.waitFor(1, TimeUnit.SECONDS)) {
+			if (Thread.interrupted()) {
+				return false;
+			}
 		}
 		return process.exitValue() == 0;
 	}
