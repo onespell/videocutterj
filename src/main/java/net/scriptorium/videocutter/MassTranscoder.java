@@ -82,8 +82,10 @@ public class MassTranscoder {
 						}
 						if (transcoded) {
 							final long outFileSize = Files.size(out);
-							if (outFileSize < srcFileSize) {
+							final long delta = srcFileSize - outFileSize;
+							if (delta > 0) {
 								Files.move(out, filePath, StandardCopyOption.REPLACE_EXISTING);
+								System.out.println("\treplaced saving " + delta + " bytes");
 							}
 							Files.write(log, (System.lineSeparator() +
 									filePathStr).getBytes(), StandardOpenOption.APPEND);
