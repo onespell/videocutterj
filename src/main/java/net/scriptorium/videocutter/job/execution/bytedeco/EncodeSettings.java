@@ -92,7 +92,7 @@ public final class EncodeSettings {
 	}
 
 	public static String x265Params(final long sourceBitrate, final int outWidth, final int outHeight) {
-		return "crf=" + adaptiveHevcCrf(sourceBitrate, outWidth, outHeight);
+		return "crf=" + adaptiveHevcCrf(sourceBitrate, outWidth, outHeight) + ":log-level=none";
 	}
 
 	public static int wmvVideoBitrate(final int width, final int height) {
