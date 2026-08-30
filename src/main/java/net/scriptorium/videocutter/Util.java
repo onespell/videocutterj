@@ -2,9 +2,12 @@ package net.scriptorium.videocutter;
 
 import net.scriptorium.videocutter.util.FileUtil;
 import org.apache.commons.lang3.StringUtils;
+import org.bytedeco.javacv.FFmpegLogCallback;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import static org.bytedeco.ffmpeg.global.avutil.AV_LOG_WARNING;
 
 public class Util {
 
@@ -15,6 +18,15 @@ public class Util {
 			System.setProperty("log4j2.configurationFile", log4j.toUri().toString());
 		}
 		Settings.load(confPath);
+		ensureFfmpegLogging();
+	}
+
+	/**
+	 * Suppress noisy JavaCV/FFmpeg info logs (e.g. rejected demuxer options for pixel_format).
+	 */
+	private static void ensureFfmpegLogging() {
+		FFmpegLogCallback.set();
+		FFmpegLogCallback.setLevel(AV_LOG_WARNING);
 	}
 
 	public static Path getConfPath() {

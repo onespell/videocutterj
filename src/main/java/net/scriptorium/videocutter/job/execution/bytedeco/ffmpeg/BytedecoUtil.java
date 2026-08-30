@@ -9,7 +9,6 @@ import org.bytedeco.ffmpeg.avformat.AVStream;
 import org.bytedeco.ffmpeg.avutil.AVDictionary;
 import org.bytedeco.ffmpeg.avutil.AVRational;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
-import org.bytedeco.javacv.FFmpegLogCallback;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -37,28 +36,11 @@ import static org.bytedeco.ffmpeg.global.avformat.avio_closep;
 import static org.bytedeco.ffmpeg.global.avformat.avio_open;
 import static org.bytedeco.ffmpeg.global.avutil.AVMEDIA_TYPE_AUDIO;
 import static org.bytedeco.ffmpeg.global.avutil.AVMEDIA_TYPE_VIDEO;
-import static org.bytedeco.ffmpeg.global.avutil.AV_LOG_WARNING;
 import static org.bytedeco.ffmpeg.global.avutil.AV_NOPTS_VALUE;
 import static org.bytedeco.ffmpeg.global.avutil.AV_TIME_BASE;
 import static org.bytedeco.ffmpeg.global.avutil.av_rescale_q;
 
 public class BytedecoUtil {
-
-	private static volatile boolean ffmpegLogConfigured;
-
-	public static void ensureFfmpegLogging() {
-		if (ffmpegLogConfigured) {
-			return;
-		}
-		synchronized (BytedecoUtil.class) {
-			if (ffmpegLogConfigured) {
-				return;
-			}
-			FFmpegLogCallback.set();
-			FFmpegLogCallback.setLevel(AV_LOG_WARNING);
-			ffmpegLogConfigured = true;
-		}
-	}
 
 	/**
 	 * Decode/encode/mux via bytedeco FFmpeg natives.
@@ -80,7 +62,6 @@ public class BytedecoUtil {
 			return false;
 		}
 		try {
-			ensureFfmpegLogging();
 			FFmpegFrameGrabber.tryLoad();
 		} catch (final Exception e) {
 			return false;
@@ -115,7 +96,6 @@ public class BytedecoUtil {
 			return false;
 		}
 		try {
-			ensureFfmpegLogging();
 			FFmpegFrameGrabber.tryLoad();
 		} catch (final Exception e) {
 			return false;

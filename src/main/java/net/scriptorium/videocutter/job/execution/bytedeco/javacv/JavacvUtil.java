@@ -6,7 +6,6 @@ import net.scriptorium.videocutter.UncheckedException;
 import net.scriptorium.videocutter.job.ClipJob;
 import net.scriptorium.videocutter.job.ShotJob;
 import net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings;
-import net.scriptorium.videocutter.job.execution.bytedeco.ffmpeg.BytedecoUtil;
 import net.scriptorium.videocutter.media.Analysis;
 import org.apache.logging.log4j.LogManager;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
@@ -110,7 +109,6 @@ public class JavacvUtil {
 		final boolean mute = job.audio() != null && job.audio().isNoSound();
 		int outW = 0;
 		int outH = 0;
-		BytedecoUtil.ensureFfmpegLogging();
 		try (final FFmpegFrameGrabber grabber = Analysis.openGrabber(source)) {
 			final int srcW = Math.max(grabber.getImageWidth(), 1);
 			final int srcH = Math.max(grabber.getImageHeight(), 1);
