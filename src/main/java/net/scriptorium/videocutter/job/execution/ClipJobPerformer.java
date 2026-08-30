@@ -7,9 +7,9 @@ import net.scriptorium.videocutter.job.execution.bytedeco.javacv.JavacvUtil;
 import java.nio.file.Path;
 import java.util.Locale;
 
-final class ClipJobPerformer {
+public final class ClipJobPerformer {
 
-	public static boolean perform(final ClipJob job, final Path source, final Path resultFile) throws Exception {
+	public static boolean perform(final ClipJob job, final Path source, final Path resultFile) {
 		final long startUs = job.timeMillis() * 1000L;
 		final long endUs = job.finishMillis() * 1000L;
 		if (endUs <= startUs) {

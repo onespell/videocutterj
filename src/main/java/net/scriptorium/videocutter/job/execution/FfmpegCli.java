@@ -1,9 +1,9 @@
 package net.scriptorium.videocutter.job.execution;
 
 import net.scriptorium.videocutter.TimeUtil;
+import net.scriptorium.videocutter.UncheckedException;
 import net.scriptorium.videocutter.job.ClipJob;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -25,7 +25,7 @@ public final class FfmpegCli {
 	public static boolean remux(
 			final ClipJob job,
 			final Path source,
-			final Path resultFile) throws IOException, InterruptedException {
+			final Path resultFile) {
 		return run(streamCopyArgs(job, source, resultFile));
 	}
 
@@ -72,25 +72,29 @@ public final class FfmpegCli {
 		}
 	}
 
-	private static boolean run(final List<String> args) throws IOException, InterruptedException {
-		final Optional<String> binary = resolveBinary();
-		if (binary.isEmpty()) {
-			return false;
-		}
-		final List<String> command = new ArrayList<>(args.size() + 1);
-		command.add(binary.get());
-		command.addAll(args);
-
-		final ProcessBuilder pb = new ProcessBuilder(command);
-		pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
-		pb.redirectError(ProcessBuilder.Redirect.DISCARD);
-		final Process process = pb.start();
-		while (!process.waitFor(1, TimeUnit.SECONDS)) {
-			if (Thread.interrupted()) {
+	private static boolean run(final List<String> args) {
+		try {
+			final Optional<String> binary = resolveBinary();
+			if (binary.isEmpty()) {
 				return false;
 			}
+			final List<String> command = new ArrayList<>(args.size() + 1);
+			command.add(binary.get());
+			command.addAll(args);
+
+			final ProcessBuilder pb = new ProcessBuilder(command);
+			pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
+			pb.redirectError(ProcessBuilder.Redirect.DISCARD);
+			final Process process = pb.start();
+			while (!process.waitFor(1, TimeUnit.SECONDS)) {
+				if (Thread.interrupted()) {
+					return false;
+				}
+			}
+			return process.exitValue() == 0;
+		} catch (final Exception e) {
+			throw new UncheckedException(e);
 		}
-		return process.exitValue() == 0;
 	}
 
 	private static Optional<String> resolveBinary() {

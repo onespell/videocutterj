@@ -1,23 +1,18 @@
 package net.scriptorium.videocutter;
 
+import org.apache.commons.lang3.StringUtils;
+
 import java.nio.file.Path;
-import java.security.CodeSource;
 
 public class Util {
 
-	public static Path getPath(final Class cls) {
-		Path result;
-		try {
-			final CodeSource source = cls.getProtectionDomain().getCodeSource();
-			if (source != null && source.getLocation() != null) {
-				Path path = Path.of(source.getLocation().toURI());
-				result = path.toString().endsWith(".jar") ? path.getParent() : path;
-			} else {
-				result = Path.of(".").toAbsolutePath();
+	public static Path getPathArgument(final String[] args) {
+		String s = null;
+		for (final String arg : args) {
+			if (!arg.startsWith("-")) {
+				s = arg;
 			}
-		} catch (Exception e) {
-			result = Path.of(".").toAbsolutePath();
 		}
-		return result;
+		return StringUtils.isBlank(s) ? null : Path.of(s).toAbsolutePath();
 	}
 }

@@ -35,25 +35,45 @@ import static org.bytedeco.ffmpeg.global.avutil.av_q2d;
 
 public final class Analysis {
 
-	public record GrabbedFrame(Frame frame, long timestampMicros) {
-
+	public static String noSoundCaption() {
+		return L10n.t("noSound");
 	}
 
-	public static MediaInfo inspect(final Path path) throws IOException {
-		final String format = formatOf(path);
+	public static MediaInfo mediaInfo(final Path path) throws IOException {
 		try (final FFmpegFrameGrabber grabber = openGrabber(path)) {
-			final int width = Math.max(grabber.getImageWidth(), 1);
-			final int height = Math.max(grabber.getImageHeight(), 1);
+			final MediaInfo result = new MediaInfo();
+			fill(result, path, grabber);
+			final int width = result.getWidth();
+			final int height = result.getHeight();
 			final String ratio = aspectRatio(width, height);
 			final List<FrameSize> sizes = buildSizes(width, height, ratio);
-			final int duration = durationMillis(grabber);
-			final Streams streams = mediaStreams(grabber);
-			final MediaStream video = streams.video().isEmpty() ? null : streams.video().get(0);
 			final List<Integer> keyFrames = keyFrames(path);
-			return new MediaInfo(format, duration, width, height, sizes, keyFrames, video, streams.audio());
+			result.setSizes(sizes);
+			result.setKeyFrames(keyFrames);
+			return result;
 		} catch (final FrameGrabber.Exception e) {
 			throw new IOException("failed to collect media info from file " + path, e);
 		}
+	}
+
+	public static ShallowMediaInfo shallowMediaInfo(final Path path) throws IOException {
+		try (final FFmpegFrameGrabber grabber = openGrabber(path)) {
+			final ShallowMediaInfo result = new ShallowMediaInfo();
+			fill(result, path, grabber);
+			return result;
+		} catch (final FrameGrabber.Exception e) {
+			throw new IOException("failed to collect media info from file " + path, e);
+		}
+	}
+
+	private static void fill(final ShallowMediaInfo info, final Path path, final FFmpegFrameGrabber grabber) {
+		info.setFormat(formatOf(path));
+		info.setWidth(Math.max(grabber.getImageWidth(), 1));
+		info.setHeight(Math.max(grabber.getImageHeight(), 1));
+		info.setDurationMillis(durationMillis(grabber));
+		final Streams streams = mediaStreams(grabber);
+		info.setVideo(streams.video().isEmpty() ? null : streams.video().get(0));
+		info.setAudio(streams.audio());
 	}
 
 	public static FFmpegFrameGrabber openGrabber(final Path path) throws FrameGrabber.Exception {
@@ -126,7 +146,7 @@ public final class Analysis {
 		return new GrabbedFrame(frame, frameTs);
 	}
 
-	static String formatOf(final Path path) {
+	public static String formatOf(final Path path) {
 		final String name = path.getFileName().toString();
 		final int dot = name.lastIndexOf('.');
 		if (dot < 0 || dot == name.length() - 1) {
@@ -227,7 +247,7 @@ public final class Analysis {
 		return entry.value().getString();
 	}
 
-	static List<Integer> keyFrames(final Path path) throws IOException {
+	private static List<Integer> keyFrames(final Path path) throws IOException {
 		final List<Integer> pts = readKeyFrames(path, true);
 		if (!pts.isEmpty()) {
 			return pts;
@@ -283,11 +303,11 @@ public final class Analysis {
 		return TimeUtil.normalizeKeyFrames(result);
 	}
 
-	public static String noSoundCaption() {
-		return L10n.t("noSound");
+	private Analysis() {
+		//
 	}
 
-	private Analysis() {
+	public record GrabbedFrame(Frame frame, long timestampMicros) {
 		//
 	}
 }

@@ -214,7 +214,7 @@ public final class MainWindow {
 		splash.show();
 		CompletableFuture.supplyAsync(() -> {
 			try {
-				return Analysis.inspect(filePath);
+				return Analysis.mediaInfo(filePath);
 			} catch (final Exception e) {
 				throw new UncheckedException(e);
 			}
@@ -233,7 +233,7 @@ public final class MainWindow {
 
 	private void applyLoadedFile(final Path filePath, final MediaInfo info) {
 		session.setFilePath(filePath);
-		viewer.setSize(info.width(), info.height());
+		viewer.setSize(info.getWidth(), info.getHeight());
 		CompletableFuture.runAsync(() -> {
 			try {
 				player.load(filePath.toString());
@@ -249,8 +249,8 @@ public final class MainWindow {
 				Dialogs.error(shell, L10n.t("loadError") + ": " + cause.getMessage());
 				return;
 			}
-			viewer.mediaBar.reset(info.durationMillis(), player.isPaused(), info.keyFrames());
-			toolBox.clipBox.reset(info.format(), info.durationMillis(), info.sizes(), info.video(), info.audio());
+			viewer.mediaBar.reset(info.getDurationMillis(), player.isPaused(), info.getKeyFrames());
+			toolBox.clipBox.reset(info.getFormat(), info.getDurationMillis(), info.getSizes(), info.getVideo(), info.getAudio());
 			toolBox.shotBox.reset();
 			toolBox.jobBox.reset();
 			viewer.mediaBar.setEnabled(true);
@@ -260,7 +260,7 @@ public final class MainWindow {
 			final int actualTime = viewer.mediaBar.getActualTime();
 			toolBox.shotBox.setTime(actualTime);
 			toolBox.clipBox.setTime(actualTime);
-			if (info.keyFrames().isEmpty()) {
+			if (info.getKeyFrames().isEmpty()) {
 				Dialogs.error(shell, L10n.t("noKeyFrames"));
 			}
 		}));

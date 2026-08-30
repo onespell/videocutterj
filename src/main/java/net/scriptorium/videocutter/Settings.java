@@ -15,6 +15,8 @@ public final class Settings {
 
 	private static Settings instance;
 
+	private static List<String> videoFormats;
+
 	private String locale = "en";
 
 	private int numOfProcessors = Math.max(1, Runtime.getRuntime().availableProcessors());
@@ -43,49 +45,13 @@ public final class Settings {
 		return instance;
 	}
 
-	private Settings() {
-		//
-	}
-
-	private void apply(final Properties properties) {
-		locale = properties.getProperty("locale", locale).trim().toLowerCase(Locale.ROOT);
-		numOfProcessors = parseInt(properties.getProperty("numOfProcessors"), numOfProcessors);
-		initialDir = Path.of(properties.getProperty("initialDir", initialDir.toString()));
-	}
-
-	private static int parseInt(final String value, final int fallback) {
-		if (value == null) {
-			return fallback;
-		}
-		try {
-			return Integer.parseInt(value.trim());
-		} catch (final NumberFormatException e) {
-			return fallback;
-		}
-	}
-
-	public String locale() {
-		return locale;
-	}
-
-	public int numOfProcessors() {
-		return numOfProcessors;
-	}
-
-	public int mediaThreads() {
-		return Math.max(1, (int) (numOfProcessors * 1.5));
-	}
-
-	public Path initialDir() {
-		return initialDir;
-	}
-
 	public static List<String> imageFormats() {
 		return List.of("WEBP", "JPEG", "PNG");
 	}
 
 	public static List<String> videoFormats() {
-		return List.of("MP4", "HEVC", "AVI", "MKV", "WMV");
+		videoFormats = (videoFormats == null) ? List.of("MP4", "HEVC", "AVI", "MKV", "WMV") : videoFormats;
+		return videoFormats;
 	}
 
 	public static String[] fileFilterNames() {
@@ -127,5 +93,42 @@ public final class Settings {
 				FrameSize.wildcardHeight(540),
 				FrameSize.wildcardHeight(720),
 				FrameSize.wildcardWidth(960));
+	}
+
+	private static int parseInt(final String value, final int fallback) {
+		if (value == null) {
+			return fallback;
+		}
+		try {
+			return Integer.parseInt(value.trim());
+		} catch (final NumberFormatException e) {
+			return fallback;
+		}
+	}
+
+	private Settings() {
+		//
+	}
+
+	private void apply(final Properties properties) {
+		locale = properties.getProperty("locale", locale).trim().toLowerCase(Locale.ROOT);
+		numOfProcessors = parseInt(properties.getProperty("numOfProcessors"), numOfProcessors);
+		initialDir = Path.of(properties.getProperty("initialDir", initialDir.toString()));
+	}
+
+	public String locale() {
+		return locale;
+	}
+
+	public int numOfProcessors() {
+		return numOfProcessors;
+	}
+
+	public int mediaThreads() {
+		return Math.max(1, (int) (numOfProcessors * 1.5));
+	}
+
+	public Path initialDir() {
+		return initialDir;
 	}
 }

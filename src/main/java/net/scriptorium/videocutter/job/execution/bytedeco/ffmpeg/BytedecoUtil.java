@@ -1,5 +1,6 @@
 package net.scriptorium.videocutter.job.execution.bytedeco.ffmpeg;
 
+import net.scriptorium.videocutter.UncheckedException;
 import net.scriptorium.videocutter.job.ClipJob;
 import org.bytedeco.ffmpeg.avcodec.AVPacket;
 import org.bytedeco.ffmpeg.avformat.AVFormatContext;
@@ -74,7 +75,7 @@ public class BytedecoUtil {
 			final Path source,
 			final Path resultFile,
 			final long startUs,
-			final long endUs) throws InterruptedException {
+			final long endUs) {
 		if (endUs <= startUs) {
 			return false;
 		}
@@ -88,7 +89,7 @@ public class BytedecoUtil {
 			return session.run(job, source, resultFile, startUs, endUs);
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw e;
+			throw new UncheckedException(e);
 		} catch (final Exception e) {
 			return false;
 		}
@@ -109,7 +110,7 @@ public class BytedecoUtil {
 			final Path source,
 			final Path resultFile,
 			final long startUs,
-			final long endUs) throws InterruptedException {
+			final long endUs) {
 		if (endUs <= startUs) {
 			return false;
 		}
@@ -301,7 +302,7 @@ public class BytedecoUtil {
 			return true;
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw e;
+			throw new UncheckedException(e);
 		} catch (final Exception e) {
 			return false;
 		} finally {

@@ -2,6 +2,7 @@ package net.scriptorium.videocutter.job.execution.bytedeco.javacv;
 
 import net.scriptorium.videocutter.FrameSize;
 import net.scriptorium.videocutter.Settings;
+import net.scriptorium.videocutter.UncheckedException;
 import net.scriptorium.videocutter.job.ClipJob;
 import net.scriptorium.videocutter.job.ShotJob;
 import net.scriptorium.videocutter.job.execution.bytedeco.EncodeSettings;
@@ -105,7 +106,7 @@ public class JavacvUtil {
 			final Path source,
 			final Path resultFile,
 			final long startUs,
-			final long endUs) throws Exception {
+			final long endUs) {
 		final boolean mute = job.audio() != null && job.audio().isNoSound();
 		int outW = 0;
 		int outH = 0;
@@ -156,7 +157,7 @@ public class JavacvUtil {
 			}
 		} catch (final InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw e;
+			throw new UncheckedException(e);
 		} catch (final Exception e) {
 			LogManager.getLogger(JavacvUtil.class).error(
 					"failed to transcode format={} {}x{}", job.format(), outW, outH, e);

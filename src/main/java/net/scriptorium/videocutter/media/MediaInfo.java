@@ -1,17 +1,28 @@
 package net.scriptorium.videocutter.media;
 
 import net.scriptorium.videocutter.FrameSize;
-import net.scriptorium.videocutter.MediaStream;
 
 import java.util.List;
 
-public record MediaInfo(String format,
-						int durationMillis,
-						int width,
-						int height,
-						List<FrameSize> sizes,
-						List<Integer> keyFrames,
-						MediaStream video,
-						List<MediaStream> audio) {
-	//
+public class MediaInfo extends ShallowMediaInfo {
+
+	private List<FrameSize> sizes;
+
+	private List<Integer> keyFrames;
+
+	public List<FrameSize> getSizes() {
+		return sizes;
+	}
+
+	public void setSizes(final List<FrameSize> sizes) {
+		this.sizes = sizes;
+	}
+
+	public List<Integer> getKeyFrames() {
+		return keyFrames;
+	}
+
+	public void setKeyFrames(final List<Integer> keyFrames) {
+		this.keyFrames = keyFrames;
+	}
 }

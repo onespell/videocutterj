@@ -9,7 +9,7 @@ plugins {
 }
 
 group = 'net.scriptorium'
-version = '1.0.0'
+version = '1.1.0'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -76,20 +76,25 @@ ext {
     scriptsBuildDir = 'build/scripts'
 }
 
-tasks.register("startScript") {
+tasks.register("scripts") {
     dependsOn(jar)
     doFirst {
         String projectHome = project.projectDir.absolutePath
-        Path templatesPath = Paths.get(projectHome, "src", "main", "scripts")
+        Path templatesPath = Paths.get(projectHome, "scripts")
         Path scriptsPath = Paths.get(projectHome, scriptsBuildDir)
         Files.createDirectories(scriptsPath)
-        String jarName = jar.archiveFile.get().getAsFile().name
-        var tmpl = templatesPath.resolve("run").toFile()
-        var text = tmpl.getText(StandardCharsets.UTF_8.name())
-        text = text.replace("\${jar}", jarName)
-        text = text.replace("\${app.version}", project.version)
-        scriptsPath.resolve("run").toFile().setText(text, StandardCharsets.UTF_8.name())
+        addScript(scriptsPath, templatesPath, "run")
+        addScript(scriptsPath, templatesPath, "mass-transcode")
     }
+}
+
+void addScript(Path scriptsPath, Path templatesPath, String name) {
+    String jarName = jar.archiveFile.get().getAsFile().name
+    File tmpl = templatesPath.resolve(name).toFile()
+    String text = tmpl.getText(StandardCharsets.UTF_8.name())
+    text = text.replace("\${jar}", jarName)
+    text = text.replace("\${app.version}", project.version)
+    scriptsPath.resolve(name).toFile().setText(text, StandardCharsets.UTF_8.name())
 }
 
 distributions {
@@ -117,4 +122,4 @@ distributions {
     }
 }
 
-[distZip, distTar]*.dependsOn clean, startScript
+[distZip, distTar]*.dependsOn clean, scripts

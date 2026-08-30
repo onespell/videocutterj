@@ -4,8 +4,8 @@ import net.scriptorium.videocutter.UncheckedException;
 import net.scriptorium.videocutter.job.ClipJob;
 import net.scriptorium.videocutter.job.Job;
 import net.scriptorium.videocutter.job.ShotJob;
+import net.scriptorium.videocutter.util.FileUtil;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
@@ -35,12 +35,7 @@ public final class JobRunner {
 			}
 			return result;
 		} catch (final Throwable t) {
-			if (out != null) {
-				final File file = out.toFile();
-				if (file.isFile()) {
-					file.delete();
-				}
-			}
+			FileUtil.delete(out);
 			throw new UncheckedException(t);
 		}
 	}
