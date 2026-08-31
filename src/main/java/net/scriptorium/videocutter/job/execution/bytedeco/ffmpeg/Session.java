@@ -821,7 +821,7 @@ public class Session implements AutoCloseable {
 	}
 
 	private void flushAudioEncoderBestEffort() {
-		if (audioEnc == null || audioEnc.isNull() || audioEncFlushed) {
+		if (audioEnc == null || audioEnc.isNull() || audioEncFlushed || outPacket.isNull()) {
 			return;
 		}
 		try {
@@ -830,9 +830,11 @@ public class Session implements AutoCloseable {
 				av_packet_unref(outPacket);
 				final int ret = avcodec_receive_packet(audioEnc, outPacket);
 				if (ret == AVERROR_EOF() || ret == AVERROR_EAGAIN()) {
+					audioEncFlushed = true;
 					return;
 				}
 				if (ret < 0) {
+					audioEncFlushed = true;
 					return;
 				}
 				try {
@@ -842,7 +844,7 @@ public class Session implements AutoCloseable {
 				}
 			}
 		} catch (final Exception ignored) {
-			//
+			audioEncFlushed = true;
 		}
 	}
 
@@ -876,8 +878,17 @@ public class Session implements AutoCloseable {
 
 	@Override
 	public void close() {
-		inPacket.close();
-		outPacket.close();
+		if (headerWritten && ofmt != null && !ofmt.isNull()) {
+			if (audioEnc != null && !audioEnc.isNull()) {
+				flushAudioEncoderBestEffort();
+			}
+			try {
+				av_write_trailer(ofmt);
+			} catch (final Exception ignored) {
+				//
+			}
+			headerWritten = false;
+		}
 		timeBaseQ.deallocate();
 		if (audioFifo != null && !audioFifo.isNull()) {
 			av_audio_fifo_free(audioFifo);
@@ -896,18 +907,8 @@ public class Session implements AutoCloseable {
 		freeCodec(videoDec);
 		freeCodec(videoEnc);
 		freeCodec(audioDec);
-		if (audioEnc != null && !audioEnc.isNull() && headerWritten) {
-			flushAudioEncoderBestEffort();
-		}
 		freeCodec(audioEnc);
 		if (ofmt != null && !ofmt.isNull()) {
-			if (headerWritten) {
-				try {
-					av_write_trailer(ofmt);
-				} catch (final Exception ignored) {
-					//
-				}
-			}
 			if (pbOpened && ofmt.pb() != null && !ofmt.pb().isNull()) {
 				avio_closep(ofmt.pb());
 			}
@@ -916,5 +917,7 @@ public class Session implements AutoCloseable {
 		if (inputOpened) {
 			avformat_close_input(ifmt);
 		}
+		inPacket.close();
+		outPacket.close();
 	}
 }
