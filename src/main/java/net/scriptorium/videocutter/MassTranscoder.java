@@ -115,7 +115,12 @@ public class MassTranscoder {
 				return result;
 			}
 		};
-		Files.walkFileTree(path, visitor);
+		try {
+			Files.walkFileTree(path, visitor);
+		} finally {
+			executor.shutdown();
+		}
+		System.out.println("finished");
 	}
 
 	public static boolean isVideo(final Path path) {
