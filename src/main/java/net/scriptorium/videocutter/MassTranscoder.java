@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MassTranscoder {
 
@@ -43,6 +44,7 @@ public class MassTranscoder {
 			processed = Collections.emptySet();
 			Files.createFile(log);
 		}
+		final AtomicInteger limit = new AtomicInteger(Settings.instance().massTranscodeLimit());
 		final ExecutorService executor = Executors.newSingleThreadExecutor(r -> new Thread(r, "vc-mass-transcode"));
 		final FileVisitor<Path> visitor = new SimpleFileVisitor<>() {
 
@@ -98,6 +100,9 @@ public class MassTranscoder {
 						if (processed) {
 							Files.write(log, (filePathStr +
 									System.lineSeparator()).getBytes(), StandardOpenOption.APPEND);
+						}
+						if (limit.decrementAndGet() < 1) {
+							result = FileVisitResult.TERMINATE;
 						}
 					} catch (final Exception e) {
 						System.out.println("failed to transcode file " + filePathStr);

@@ -23,6 +23,8 @@ public final class Settings {
 
 	private Path initialDir = Path.of(System.getProperty("user.home", "/home"));
 
+	private int massTranscodeLimit = 0;
+
 	public static Settings instance() {
 		return instance;
 	}
@@ -45,7 +47,10 @@ public final class Settings {
 
 	public static Settings load(final Properties properties) {
 		instance = new Settings();
-		instance.apply(properties);
+		instance.locale = properties.getProperty("locale", instance.locale).trim().toLowerCase(Locale.ROOT);
+		instance.numOfProcessors = parseInt(properties.getProperty("numOfProcessors"), instance.numOfProcessors);
+		instance.initialDir = Path.of(properties.getProperty("initialDir", instance.initialDir.toString()));
+		instance.massTranscodeLimit = parseInt(properties.getProperty("massTranscode.limit"), instance.massTranscodeLimit);
 		return instance;
 	}
 
@@ -114,12 +119,6 @@ public final class Settings {
 		//
 	}
 
-	private void apply(final Properties properties) {
-		locale = properties.getProperty("locale", locale).trim().toLowerCase(Locale.ROOT);
-		numOfProcessors = parseInt(properties.getProperty("numOfProcessors"), numOfProcessors);
-		initialDir = Path.of(properties.getProperty("initialDir", initialDir.toString()));
-	}
-
 	public String locale() {
 		return locale;
 	}
@@ -131,6 +130,10 @@ public final class Settings {
 	public int mediaThreads() {
 		// return Math.max(1, (int) (numOfProcessors * 1.5));
 		return Math.max(1, numOfProcessors);
+	}
+
+	public int massTranscodeLimit() {
+		return (massTranscodeLimit > 0) ? massTranscodeLimit : Integer.MAX_VALUE;
 	}
 
 	public Path initialDir() {
