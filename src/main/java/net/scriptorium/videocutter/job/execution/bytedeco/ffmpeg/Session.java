@@ -13,6 +13,7 @@ import org.bytedeco.ffmpeg.avformat.AVFormatContext;
 import org.bytedeco.ffmpeg.avformat.AVIOContext;
 import org.bytedeco.ffmpeg.avformat.AVStream;
 import org.bytedeco.ffmpeg.avutil.AVAudioFifo;
+import org.bytedeco.ffmpeg.avutil.AVChannelLayout;
 import org.bytedeco.ffmpeg.avutil.AVDictionary;
 import org.bytedeco.ffmpeg.avutil.AVFrame;
 import org.bytedeco.ffmpeg.avutil.AVRational;
@@ -72,8 +73,11 @@ import static org.bytedeco.ffmpeg.global.avutil.av_audio_fifo_free;
 import static org.bytedeco.ffmpeg.global.avutil.av_audio_fifo_read;
 import static org.bytedeco.ffmpeg.global.avutil.av_audio_fifo_size;
 import static org.bytedeco.ffmpeg.global.avutil.av_audio_fifo_write;
+import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_check;
 import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_compare;
+import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_copy;
 import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_default;
+import static org.bytedeco.ffmpeg.global.avutil.av_channel_layout_uninit;
 import static org.bytedeco.ffmpeg.global.avutil.av_dict_free;
 import static org.bytedeco.ffmpeg.global.avutil.av_frame_alloc;
 import static org.bytedeco.ffmpeg.global.avutil.av_frame_free;
@@ -82,8 +86,11 @@ import static org.bytedeco.ffmpeg.global.avutil.av_frame_make_writable;
 import static org.bytedeco.ffmpeg.global.avutil.av_frame_unref;
 import static org.bytedeco.ffmpeg.global.avutil.av_inv_q;
 import static org.bytedeco.ffmpeg.global.avutil.av_rescale_q;
+import static org.bytedeco.ffmpeg.global.avutil.av_opt_set_chlayout;
+import static org.bytedeco.ffmpeg.global.avutil.av_opt_set_int;
+import static org.bytedeco.ffmpeg.global.avutil.av_opt_set_sample_fmt;
 import static org.bytedeco.ffmpeg.global.avutil.av_samples_set_silence;
-import static org.bytedeco.ffmpeg.global.swresample.swr_alloc_set_opts2;
+import static org.bytedeco.ffmpeg.global.swresample.swr_alloc;
 import static org.bytedeco.ffmpeg.global.swresample.swr_convert;
 import static org.bytedeco.ffmpeg.global.swresample.swr_free;
 import static org.bytedeco.ffmpeg.global.swresample.swr_get_out_samples;
@@ -198,6 +205,59 @@ public class Session implements AutoCloseable {
 		return Math.max(audioEnc.frame_size(), 1024);
 	}
 
+	private static void ensureValidChannelLayout(
+			final AVChannelLayout layout,
+			final AVChannelLayout fallback,
+			final int channelCount,
+			final int streamIndex) {
+		if (layout == null || layout.isNull()) {
+			return;
+		}
+		if (av_channel_layout_check(layout) >= 0) {
+			return;
+		}
+		final int channels = Math.max(channelCount, 1);
+		LOG.warn("repairing invalid audio channel layout: stream={}, nb_channels={}", streamIndex, channels);
+		av_channel_layout_uninit(layout);
+		if (fallback != null && !fallback.isNull() && av_channel_layout_check(fallback) >= 0) {
+			if (av_channel_layout_copy(layout, fallback) >= 0) {
+				return;
+			}
+			av_channel_layout_uninit(layout);
+		}
+		av_channel_layout_default(layout, channels);
+	}
+
+	private boolean openSwrContext() {
+		swr = swr_alloc();
+		if (swr == null || swr.isNull()) {
+			return false;
+		}
+		swrPtr.put(0, swr);
+		final AVChannelLayout inLayout = new AVChannelLayout();
+		final AVChannelLayout outLayout = new AVChannelLayout();
+		try {
+			inLayout.zero();
+			outLayout.zero();
+			if (av_channel_layout_copy(outLayout, audioEnc.ch_layout()) < 0
+					|| av_channel_layout_copy(inLayout, audioDec.ch_layout()) < 0) {
+				return false;
+			}
+			if (av_opt_set_chlayout(swr, "out_chlayout", outLayout, 0) < 0
+					|| av_opt_set_chlayout(swr, "in_chlayout", inLayout, 0) < 0
+					|| av_opt_set_sample_fmt(swr, "out_sample_fmt", audioEnc.sample_fmt(), 0) < 0
+					|| av_opt_set_sample_fmt(swr, "in_sample_fmt", audioDec.sample_fmt(), 0) < 0
+					|| av_opt_set_int(swr, "out_sample_rate", audioEnc.sample_rate(), 0) < 0
+					|| av_opt_set_int(swr, "in_sample_rate", audioDec.sample_rate(), 0) < 0) {
+				return false;
+			}
+			return true;
+		} finally {
+			av_channel_layout_uninit(inLayout);
+			av_channel_layout_uninit(outLayout);
+		}
+	}
+
 	private static int pickSampleFmt(final AVCodec codec) {
 		final IntPointer fmts = codec.sample_fmts();
 		if (fmts == null || fmts.isNull()) {
@@ -293,9 +353,11 @@ public class Session implements AutoCloseable {
 		}
 
 		if (!openVideo(job)) {
+			LOG.warn("openVideo failed");
 			return false;
 		}
 		if (haveAudio && !openAudio(job)) {
+			LOG.warn("openAudio failed");
 			return false;
 		}
 
@@ -451,12 +513,17 @@ public class Session implements AutoCloseable {
 		videoEncFrame.format(AV_PIX_FMT_YUV420P);
 		videoEncFrame.width(outW);
 		videoEncFrame.height(outH);
-		return av_frame_get_buffer(videoEncFrame, 32) >= 0;
+		if (av_frame_get_buffer(videoEncFrame, 32) < 0) {
+			LOG.warn("openVideo: av_frame_get_buffer failed for {}x{}", outW, outH);
+			return false;
+		}
+		return true;
 	}
 
 	private boolean openAudio(final ClipJob job) {
 		final AVCodec decoder = avcodec_find_decoder(audioIn.codecpar().codec_id());
 		if (decoder == null || decoder.isNull()) {
+			LOG.warn("openAudio: decoder not found for codec_id={}", audioIn.codecpar().codec_id());
 			return false;
 		}
 		audioDec = avcodec_alloc_context3(decoder);
@@ -467,12 +534,14 @@ public class Session implements AutoCloseable {
 			return false;
 		}
 		audioDec.pkt_timebase(audioIn.time_base());
+		ensureValidChannelLayout(
+				audioDec.ch_layout(),
+				audioIn.codecpar().ch_layout(),
+				Math.max(audioIn.codecpar().ch_layout().nb_channels(), 1),
+				audioInIdx);
 		if (avcodec_open2(audioDec, decoder, (AVDictionary) null) < 0) {
+			LOG.warn("openAudio: avcodec_open2 decoder failed");
 			return false;
-		}
-		if (audioDec.ch_layout().nb_channels() <= 0) {
-			final int ch = Math.max(audioIn.codecpar().ch_layout().nb_channels(), 1);
-			av_channel_layout_default(audioDec.ch_layout(), ch);
 		}
 
 		final String fmt = job.format() == null ? "" : job.format().toLowerCase(Locale.ROOT);
@@ -492,6 +561,11 @@ public class Session implements AutoCloseable {
 		audioEnc.sample_fmt(pickSampleFmt(encoder));
 		av_channel_layout_default(audioEnc.ch_layout(),
 				Math.max(audioDec.ch_layout().nb_channels(), 1));
+		ensureValidChannelLayout(
+				audioEnc.ch_layout(),
+				audioDec.ch_layout(),
+				Math.max(audioDec.ch_layout().nb_channels(), 1),
+				audioInIdx);
 		audioEnc.bit_rate(EncodeSettings.AUDIO_BITRATE);
 		final AVRational tb = new AVRational();
 		tb.num(1);
@@ -501,6 +575,7 @@ public class Session implements AutoCloseable {
 			audioEnc.flags(audioEnc.flags() | AV_CODEC_FLAG_GLOBAL_HEADER);
 		}
 		if (avcodec_open2(audioEnc, encoder, (AVDictionary) null) < 0) {
+			LOG.warn("openAudio: avcodec_open2 encoder failed for {}", codecName);
 			return false;
 		}
 
@@ -519,11 +594,10 @@ public class Session implements AutoCloseable {
 				|| audioDec.sample_rate() != audioEnc.sample_rate()
 				|| av_channel_layout_compare(audioDec.ch_layout(), audioEnc.ch_layout()) != 0;
 		if (resample) {
-			if (swr_alloc_set_opts2(swrPtr, audioEnc.ch_layout(), audioEnc.sample_fmt(), audioEnc.sample_rate(),
-					audioDec.ch_layout(), audioDec.sample_fmt(), audioDec.sample_rate(), 0, null) < 0) {
+			if (!openSwrContext()) {
+				LOG.warn("openAudio: openSwrContext failed");
 				return false;
 			}
-			swr = new SwrContext(swrPtr.get(0));
 			if (swr_init(swr) < 0) {
 				return false;
 			}
@@ -546,7 +620,11 @@ public class Session implements AutoCloseable {
 		audioEncFrame.format(audioEnc.sample_fmt());
 		audioEncFrame.ch_layout(audioEnc.ch_layout());
 		audioEncFrame.sample_rate(audioEnc.sample_rate());
-		return av_frame_get_buffer(audioEncFrame, 0) >= 0;
+		if (av_frame_get_buffer(audioEncFrame, 0) < 0) {
+			LOG.warn("openAudio: av_frame_get_buffer failed for audio enc frame");
+			return false;
+		}
+		return true;
 	}
 
 	private boolean decodeVideo(final AVPacket packet) {
@@ -664,8 +742,13 @@ public class Session implements AutoCloseable {
 		if (audioDec == null) {
 			return true;
 		}
-		if (avcodec_send_packet(audioDec, packet) < 0) {
-			return packet == null;
+		final int sendRet = avcodec_send_packet(audioDec, packet);
+		if (sendRet < 0) {
+			if (packet == null) {
+				return true;
+			}
+			LOG.warn("avcodec_send_packet audio skipped: ret={}", sendRet);
+			return true;
 		}
 		while (true) {
 			av_frame_unref(decFrame);
@@ -896,6 +979,7 @@ public class Session implements AutoCloseable {
 		if (swr != null && !swr.isNull()) {
 			swr_free(swrPtr);
 		}
+		swrPtr.put(0, null);
 		swrPtr.deallocate();
 		if (sws != null && !sws.isNull()) {
 			sws_freeContext(sws);
